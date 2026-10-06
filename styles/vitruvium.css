@@ -71,3 +71,44 @@
 .vitruvium .aspect-list article p { margin:4px 0; color:#9aa8b5; }
 @media (max-width: 920px) { .vitruvium .character-layout { grid-template-columns:1fr; } .vitruvium .left-column, .vitruvium .main-column { max-height:none; } }
 @media (max-width: 560px) { .vitruvium .card-grid, .vitruvium .domain-grid, .vitruvium .characteristics-grid { grid-template-columns:1fr; } .vitruvium .stat-strip { grid-template-columns:repeat(2,1fr); } }
+.vitruvium.sheet.actor .window-content { display:flex; min-height:0; padding:0; overflow:hidden; }
+.vitruvium.sheet.actor { max-width:calc(100vw - 24px); max-height:calc(100vh - 32px); }
+.vitruvium .character-sheet { box-sizing:border-box; flex:1 1 auto; width:100%; height:100%; min-height:0; max-height:100%; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; }
+.vitruvium .character-header { grid-template-columns:minmax(180px, .8fr) minmax(0, 2fr); align-items:stretch; }
+.vitruvium .stat-panel { min-width:0; padding:10px; border:1px solid #344455; border-radius:12px; background:#181e26; }
+.vitruvium .stat-panel > header { margin-bottom:7px; }
+.vitruvium .stat-panel > header h2 { flex:1; margin:0; font-size:.9rem; }
+.vitruvium .stat-strip { grid-template-columns:repeat(6, minmax(0, 1fr)); gap:5px; padding:0; background:transparent; }
+.vitruvium .stat-strip .characteristic-card { min-width:0; padding:5px 2px; border:1px solid #303b46; border-radius:7px; background:#202832; }
+.vitruvium .characteristic-card span { font-size:.68rem; }
+.vitruvium .left-column, .vitruvium .main-column { max-height:none; min-height:0; overflow:visible; padding-right:0; }
+.vitruvium .inspiration-panel { padding:10px 14px; }
+.vitruvium .inspiration-panel > header { margin-bottom:6px; }
+.vitruvium .inspiration-panel > header h2 { font-size:.9rem; }
+.vitruvium .inspiration-counter { display:flex; align-items:center; justify-content:center; gap:8px; color:#f0a84a; }
+.vitruvium .inspiration-counter b { min-width:18px; text-align:center; font-size:1.2rem; }
+.vitruvium .inspiration-counter span { color:#9aa8b5; }
+.vitruvium .inspiration-counter button { width:28px; height:28px; padding:0; border:1px solid #465767; border-radius:7px; background:#242d37; color:#edf3f8; }
+.vitruvium .inspiration-counter button:hover { border-color:#f0a84a; background:#303a45; }
+.vitruvium .resource-list { display:grid; gap:7px; }
+.vitruvium .resources-panel .resource-card { display:flex; width:auto; min-width:0; align-items:center; justify-content:space-between; gap:10px; padding:9px 11px; border:1px solid #354653; border-radius:9px; background:#232d38; text-align:left; }
+.vitruvium .resources-panel .resource-card > b { flex:1; font-size:.95rem; }
+.vitruvium .resource-card .resource-number { width:90px; }
+.vitruvium .resource-card label { display:grid; gap:4px; color:#aab7c4; font-size:.75rem; }
+.vitruvium .resources-panel .add-card { min-height:0; }
+.vitruvium .relationship input[type="number"] { width:64px; }
+.vitruvium .relationship .relationship-portrait { align-self:center; }
+.vitruvium .scroll-list { min-height:0; }
+.vitruvium .domain-grid.scroll-list, .vitruvium .card-grid.scroll-list { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+.vitruvium .horizontal-list.scroll-list { display:flex; }
+.vitruvium .possession-card { flex:0 0 160px; }
+.vitruvium .possession-card .inline-edit { min-width:0; }
+@media (max-width: 760px) {
+  .vitruvium .character-header { grid-template-columns:1fr; }
+  .vitruvium .stat-strip { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .vitruvium .domain-grid.scroll-list, .vitruvium .card-grid.scroll-list { grid-template-columns:1fr; }
+  .vitruvium .relationship { grid-template-columns:1fr auto; }
+  .vitruvium .relationship .card-actions { grid-column:1 / -1; }
+}

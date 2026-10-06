@@ -1,51 +1,176 @@
 <section class="vitruvium-sheet character-sheet">
   <header class="character-header">
     <div class="character-name">{{actor.name}}</div>
-    <section class="stat-strip">
-      {{#each characteristics as |characteristic key|}}
-        <div class="characteristic-card" title="{{characteristic.label}}">
-          <span>{{characteristic.label}}</span>
-          <div class="stepper">
-            <button type="button" data-vitruvium-action="adjust-characteristic" data-characteristic="{{key}}" data-delta="-1" aria-label="Снизить {{characteristic.label}}">−</button>
-            <b>{{lookup (lookup ../system.characteristics key) "value"}}</b>
-            <button type="button" data-vitruvium-action="adjust-characteristic" data-characteristic="{{key}}" data-delta="1" aria-label="Увеличить {{characteristic.label}}">+</button>
+    <section class="stat-panel">
+      <header><h2>Характеристики</h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="characteristics" aria-label="Редактировать характеристики">⋯</button></header>
+      <div class="stat-strip">
+        {{#each characteristics as |characteristic key|}}
+          <div class="characteristic-card" title="{{characteristic.label}}">
+            <span>{{characteristic.label}}</span>
+            {{#if ../editing.characteristics}}
+              <div class="stepper">
+                <button type="button" data-vitruvium-action="adjust-characteristic" data-characteristic="{{key}}" data-delta="-1" aria-label="Снизить {{characteristic.label}}">−</button>
+                <b>{{lookup (lookup ../system.characteristics key) "value"}}</b>
+                <button type="button" data-vitruvium-action="adjust-characteristic" data-characteristic="{{key}}" data-delta="1" aria-label="Увеличить {{characteristic.label}}">+</button>
+              </div>
+            {{else}}
+              <b>{{lookup (lookup ../system.characteristics key) "value"}}</b>
+            {{/if}}
           </div>
-        </div>
-      {{/each}}
+        {{/each}}
+      </div>
     </section>
   </header>
   <div class="character-layout">
     <aside class="left-column">
       <section class="panel profile-panel">
         <img class="profile" src="{{actor.img}}" data-edit="img" title="Изображение персонажа">
-        <button type="button" class="panel-action" data-vitruvium-action="edit-item" data-item-id="{{actor.id}}">Настроить персонажа</button>
+      </section>
+      <section class="panel inspiration-panel">
+        <header><h2>Вдохновение</h2></header>
+        <div class="inspiration-counter">
+          <button type="button" data-vitruvium-action="adjust-inspiration" data-delta="-1" aria-label="Уменьшить вдохновение">−</button>
+          <b>{{system.inspiration}}</b><span>/ {{maxInspiration}}</span>
+          <button type="button" data-vitruvium-action="adjust-inspiration" data-delta="1" aria-label="Увеличить вдохновение">+</button>
+        </div>
       </section>
       <section class="panel status-panel">
-        <header><h2>Статусы</h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="statuses">⋯</button></header>
-        <div class="scroll-list">{{#each statuses}}<article class="entity-card compact"><div><b>{{name}}</b>{{#if description}}<p>{{description}}</p>{{/if}}</div>{{#if ../editing.statuses}}<div class="card-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>{{/if}}</article>{{else}}<p class="empty">Статусы не добавлены.</p>{{/each}}</div>
+        <header><h2>Статусы</h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="statuses" aria-label="Редактировать статусы">⋯</button></header>
+        <div class="scroll-list">
+          {{#each statuses}}
+            <article class="entity-card compact">
+              {{#if (lookup ../editingItems id)}}
+                <input class="inline-edit" data-item-id="{{id}}" data-item-field="name" value="{{name}}" aria-label="Название статуса">
+                <textarea class="inline-edit" data-item-id="{{id}}" data-item-field="description" aria-label="Описание статуса">{{system.description}}</textarea>
+                <div class="card-actions"><button type="button" data-vitruvium-action="save-item" data-item-id="{{id}}">Сохранить</button><button type="button" data-vitruvium-action="cancel-item" data-item-id="{{id}}">Отмена</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>
+              {{else}}
+                <div><b>{{name}}</b>{{#if system.description}}<p>{{system.description}}</p>{{/if}}</div>
+                {{#if ../editing.statuses}}<div class="card-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>{{/if}}
+              {{/if}}
+            </article>
+          {{else}}<p class="empty">Статусы не добавлены.</p>{{/each}}
+        </div>
         {{#if editing.statuses}}<button type="button" class="add-card" data-vitruvium-action="create-item" data-type="status">Добавить статус</button>{{/if}}
       </section>
     </aside>
     <main class="main-column">
       <section class="panel attributes-panel">
-        <header><h2>Атрибуты <span>{{attributes.length}} / 12</span></h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="attributes">⋯</button></header>
-        <div class="card-grid scroll-list">{{#each attributes}}<article class="entity-card"><b>{{name}}</b><p>{{description}}</p>{{#if ../editing.attributes}}<div class="card-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>{{/if}}</article>{{else}}<p class="empty">Атрибуты не добавлены.</p>{{/each}}{{#if editing.attributes}}<button type="button" class="add-card" data-vitruvium-action="create-item" data-type="attribute">Добавить атрибут</button>{{/if}}</div>
+        <header><h2>Атрибуты <span>{{attributes.length}} / 12</span></h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="attributes" aria-label="Редактировать атрибуты">⋯</button></header>
+        <div class="card-grid scroll-list">
+          {{#each attributes}}
+            <article class="entity-card">
+              {{#if (lookup ../editingItems id)}}
+                <input class="inline-edit" data-item-id="{{id}}" data-item-field="name" value="{{name}}" aria-label="Название атрибута">
+                <textarea class="inline-edit" data-item-id="{{id}}" data-item-field="description" aria-label="Описание атрибута">{{system.description}}</textarea>
+                <div class="card-actions"><button type="button" data-vitruvium-action="save-item" data-item-id="{{id}}">Сохранить</button><button type="button" data-vitruvium-action="cancel-item" data-item-id="{{id}}">Отмена</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>
+              {{else}}
+                <b>{{name}}</b><p>{{system.description}}</p>
+                {{#if ../editing.attributes}}<div class="card-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>{{/if}}
+              {{/if}}
+            </article>
+          {{else}}<p class="empty">Атрибуты не добавлены.</p>{{/each}}
+          {{#if editing.attributes}}<button type="button" class="add-card" data-vitruvium-action="create-item" data-type="attribute">Добавить атрибут</button>{{/if}}
+        </div>
       </section>
       <section class="panel domains-panel">
-        <header><h2>Домены <span>{{domains.length}} / 6</span></h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="domains">⋯</button></header>
-        <div class="domain-grid scroll-list">{{#each domains}}<article class="domain-card"><div class="domain-title"><b>{{name}}</b><span>Уровень {{system.value}}</span></div>{{#if ../editing.domains}}<input class="inline-edit" data-domain-id="{{id}}" data-domain-field="name" value="{{name}}" aria-label="Название домена"><input class="inline-edit" data-domain-id="{{id}}" data-domain-field="level" type="number" min="1" max="3" value="{{system.value}}" aria-label="Уровень домена">{{/if}}<p>{{system.description}}</p><div class="ability-list">{{#each abilities}}<div class="ability-item"><span>{{name}}</span>{{#if ../../editing.domains}}<button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button>{{/if}}</div>{{else}}<p class="empty">Способностей нет.</p>{{/each}}</div>{{#if ../editing.domains}}<button type="button" class="add-card small" data-vitruvium-action="create-ability" data-domain-id="{{id}}">Добавить способность</button><button type="button" class="delete-card" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить домен</button>{{/if}}</article>{{else}}<p class="empty">Домены не добавлены.</p>{{/each}}{{#if editing.domains}}<button type="button" class="add-card" data-vitruvium-action="create-item" data-type="domain">Добавить домен</button>{{/if}}</div>
+        <header><h2>Домены <span>{{domains.length}} / 6</span></h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="domains" aria-label="Редактировать домены">⋯</button></header>
+        <div class="domain-grid scroll-list">
+          {{#each domains}}
+            <article class="domain-card">
+              {{#if (lookup ../editingItems id)}}
+                <input class="inline-edit" data-item-id="{{id}}" data-item-field="name" value="{{name}}" aria-label="Название домена">
+                <input class="inline-edit" data-item-id="{{id}}" data-item-field="system.value" type="number" min="1" max="3" value="{{system.value}}" aria-label="Уровень домена">
+                <textarea class="inline-edit" data-item-id="{{id}}" data-item-field="system.description" aria-label="Описание домена">{{system.description}}</textarea>
+                <div class="card-actions"><button type="button" data-vitruvium-action="save-item" data-item-id="{{id}}">Сохранить</button><button type="button" data-vitruvium-action="cancel-item" data-item-id="{{id}}">Отмена</button><button type="button" class="delete-card" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить домен</button></div>
+              {{else}}
+                <div class="domain-title"><b>{{name}}</b><span>Уровень {{system.value}}</span></div>
+                <p>{{system.description}}</p>
+                {{#if ../editing.domains}}<div class="card-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" class="delete-card" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить домен</button></div>{{/if}}
+              {{/if}}
+              <div class="ability-list">
+                {{#each abilities}}
+                  <div class="ability-item">
+                    {{#if (lookup ../../editingItems id)}}
+                      <input class="inline-edit" data-item-id="{{id}}" data-item-field="name" value="{{name}}" aria-label="Название способности">
+                      <textarea class="inline-edit" data-item-id="{{id}}" data-item-field="system.description" aria-label="Описание способности">{{system.description}}</textarea>
+                      <button type="button" data-vitruvium-action="save-item" data-item-id="{{id}}">Сохранить</button>
+                      <button type="button" data-vitruvium-action="cancel-item" data-item-id="{{id}}">Отмена</button>
+                    {{else}}
+                      <span>{{name}}</span>
+                      {{#if ../../editing.domains}}<button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button>{{/if}}
+                    {{/if}}
+                  </div>
+                {{else}}<p class="empty">Способностей нет.</p>{{/each}}
+              </div>
+              {{#if ../editing.domains}}<button type="button" class="add-card small" data-vitruvium-action="create-ability" data-domain-id="{{id}}">Добавить способность</button>{{/if}}
+            </article>
+          {{else}}<p class="empty">Домены не добавлены.</p>{{/each}}
+          {{#if editing.domains}}<button type="button" class="add-card" data-vitruvium-action="create-item" data-type="domain">Добавить домен</button>{{/if}}
+        </div>
       </section>
       <section class="panel possessions-panel">
-        <header><h2>Имущество</h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="possessions">⋯</button></header>
-        <div class="horizontal-list scroll-list">{{#each possessions}}<article class="possession-card"><img src="{{img}}"><span>{{name}}</span>{{#if ../editing.possessions}}<div class="card-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>{{/if}}</article>{{else}}<p class="empty">Имущество не добавлено.</p>{{/each}}{{#if editing.possessions}}<button type="button" class="add-card" data-vitruvium-action="create-item" data-type="possession">Добавить имущество</button>{{/if}}</div>
+        <header><h2>Имущество</h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="possessions" aria-label="Редактировать имущество">⋯</button></header>
+        <div class="horizontal-list scroll-list">
+          {{#each possessions}}
+            <article class="possession-card">
+              <img src="{{img}}" title="Изображение предмета">
+              {{#if (lookup ../editingItems id)}}
+                <input class="inline-edit" data-item-id="{{id}}" data-item-field="name" value="{{name}}" aria-label="Название предмета">
+                <textarea class="inline-edit" data-item-id="{{id}}" data-item-field="system.description" aria-label="Описание предмета">{{system.description}}</textarea>
+                <div class="card-actions"><button type="button" data-vitruvium-action="save-item" data-item-id="{{id}}">Сохранить</button><button type="button" data-vitruvium-action="cancel-item" data-item-id="{{id}}">Отмена</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>
+              {{else}}
+                <span>{{name}}</span>
+                {{#if ../editing.possessions}}<div class="card-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>{{/if}}
+              {{/if}}
+            </article>
+          {{else}}<p class="empty">Имущество не добавлено.</p>{{/each}}
+          {{#if editing.possessions}}<button type="button" class="add-card" data-vitruvium-action="create-item" data-type="possession">Добавить имущество</button>{{/if}}
+        </div>
       </section>
       <section class="panel relationships-panel">
-        <header><h2>Отношения</h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="relationships">⋯</button></header>
-        <div class="scroll-list">{{#each relationships}}<article class="relationship"><div><b>{{name}}</b>{{#if ../editing.relationships}}<input class="inline-edit" data-relationship-id="{{id}}" data-relationship-field="name" value="{{name}}" aria-label="Название отношения"><textarea class="inline-edit" data-relationship-id="{{id}}" data-relationship-field="description">{{description}}</textarea>{{else}}<p>{{description}}</p>{{/if}}</div><strong>{{value}}</strong>{{#if ../editing.relationships}}<div class="card-actions"><button type="button" data-vitruvium-action="adjust-relationship" data-id="{{id}}" data-delta="-1">−</button><button type="button" data-vitruvium-action="adjust-relationship" data-id="{{id}}" data-delta="1">+</button><label class="image-button">Образец<input type="file" data-relationship-image="{{id}}" accept="image/*"></label><button type="button" data-vitruvium-action="remove-relationship" data-id="{{id}}">Удалить</button></div>{{/if}}</article>{{else}}<p class="empty">Отношения не добавлены.</p>{{/each}}{{#if editing.relationships}}<button type="button" class="add-card" data-vitruvium-action="add-relationship">Добавить отношение</button>{{/if}}</div>
+        <header><h2>Отношения</h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="relationships" aria-label="Редактировать отношения">⋯</button></header>
+        <div class="scroll-list">
+          {{#each relationships}}
+            <article class="relationship">
+              {{#if ../editing.relationships}}
+                <div>
+                  <input class="inline-edit" data-relationship-id="{{id}}" data-relationship-field="name" value="{{name}}" aria-label="Название отношения">
+                  <textarea class="inline-edit" data-relationship-id="{{id}}" data-relationship-field="description" aria-label="Описание отношения">{{description}}</textarea>
+                </div>
+                <strong>{{value}}</strong>
+                <div class="card-actions">
+                  <button type="button" data-vitruvium-action="adjust-relationship" data-id="{{id}}" data-delta="-1">−</button><button type="button" data-vitruvium-action="adjust-relationship" data-id="{{id}}" data-delta="1">+</button>
+                  <label class="image-button">Образец<input type="file" data-relationship-image="{{id}}" accept="image/*"></label>
+                  <button type="button" data-vitruvium-action="save-relationship" data-id="{{id}}">Сохранить</button><button type="button" data-vitruvium-action="remove-relationship" data-id="{{id}}">Удалить</button>
+                </div>
+              {{else}}
+                <div><b>{{name}}</b><p>{{description}}</p></div>
+                <strong>{{value}}</strong>
+                {{#if portrait}}<img class="relationship-portrait" src="{{portrait}}" alt="{{name}}">{{/if}}
+              {{/if}}
+            </article>
+          {{else}}<p class="empty">Отношения не добавлены.</p>{{/each}}
+          {{#if editing.relationships}}<button type="button" class="add-card" data-vitruvium-action="add-relationship">Добавить отношение</button>{{/if}}
+        </div>
       </section>
       <section class="panel resources-panel">
-        <header><h2>Ресурсы</h2></header>
-        <div class="resource-card"><div><span>Вдохновение</span><small>Максимум {{maxInspiration}}</small></div><div class="stepper"><button type="button" data-vitruvium-action="adjust-inspiration" data-delta="-1">−</button><b>{{system.inspiration}} / {{maxInspiration}}</b><button type="button" data-vitruvium-action="adjust-inspiration" data-delta="1">+</button></div></div>
+        <header><h2>Ресурсы</h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="resources" aria-label="Редактировать ресурсы">⋯</button></header>
+        <div class="resource-list">
+          {{#each resources}}
+            <article class="resource-card">
+              {{#if (lookup ../editingItems id)}}
+                <input class="inline-edit" data-resource-id="{{id}}" data-resource-field="name" value="{{name}}" aria-label="Название ресурса">
+                <label>Текущее <input class="inline-edit resource-number" data-resource-id="{{id}}" data-resource-field="value" type="number" min="0" max="{{max}}" value="{{value}}"></label>
+                <label>Максимум <input class="inline-edit resource-number" data-resource-id="{{id}}" data-resource-field="max" type="number" min="0" value="{{max}}"></label>
+                <div class="card-actions"><button type="button" data-vitruvium-action="save-resource" data-resource-id="{{id}}">Сохранить</button><button type="button" data-vitruvium-action="cancel-resource" data-resource-id="{{id}}">Отмена</button><button type="button" data-vitruvium-action="delete-resource" data-resource-id="{{id}}">Удалить</button></div>
+              {{else}}
+                <b>{{name}}</b><span>{{value}} / {{max}}</span>
+                {{#if ../editing.resources}}<div class="card-actions"><button type="button" data-vitruvium-action="edit-resource" data-resource-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-resource" data-resource-id="{{id}}">Удалить</button></div>{{/if}}
+              {{/if}}
+            </article>
+          {{else}}<p class="empty">Ресурсы не добавлены.</p>{{/each}}
+          {{#if editing.resources}}<button type="button" class="add-card small" data-vitruvium-action="add-resource">Добавить ресурс</button>{{/if}}
+        </div>
       </section>
     </main>
   </div>

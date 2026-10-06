@@ -113,13 +113,14 @@ function renderChatTray(html) {
 
 class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2) {
   static DEFAULT_OPTIONS = {
-    classes: ["vitruvium", "sheet", "actor"], position: { width: 980, height: 820 },
+    classes: ["vitruvium", "sheet", "actor"], position: { width: 980, height: 820 }, window: { resizable: true },
     form: { closeOnSubmit: false, submitOnChange: true }
   };
   static PARTS = { main: { template: "systems/vitruvium/templates/actor-sheet.hbs" } };
   constructor(options) {
     super(options);
-    this.editing = { characteristics: false, domains: false, attributes: false, possessions: false, statuses: false, relationships: false };
+    this.editing = { characteristics: false, domains: false, attributes: false, possessions: false, statuses: false, relationships: false, resources: false };
+    this.editingItems = {};
   }
   get actor() { return this.object ?? this.document; }
   get title() { return this.actor.name; }
@@ -127,16 +128,17 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     const relationships = this.actor.system.relationships ?? [];
+    const resources = (this.actor.system.resources ?? []).map((resource, index) => ({ ...resource, id: resource.id ?? `resource-${index}` }));
     return {
       ...context, actor: this.actor, system: this.actor.system, characteristics: CHARACTERISTICS,
       relationships, maxCharacteristic: getSetting("maxCharacteristic"), relationshipMin: getSetting("relationshipMin"),
-      relationshipMax: getSetting("relationshipMax"), maxInspiration: getSetting("maxInspiration"),
-      domains: this.actor.items.filter((item) => item.type === "domain").map((domain) => ({ id: domain.id, name: domain.name, system: domain.system, abilities: this.actor.items.filter((item) => item.type === "ability" && item.system.domainId === domain.id).map((ability) => ({ id: ability.id, name: ability.name })) })),
+      relationshipMax: getSetting("relationshipMax"), maxInspiration: 6, resources,
+      domains: this.actor.items.filter((item) => item.type === "domain").map((domain) => ({ id: domain.id, name: domain.name, system: domain.system, abilities: this.actor.items.filter((item) => item.type === "ability" && item.system.domainId === domain.id) })),
       abilities: this.actor.items.filter((item) => item.type === "ability"),
       attributes: this.actor.items.filter((item) => item.type === "attribute"),
       possessions: this.actor.items.filter((item) => item.type === "possession"),
       statuses: this.actor.items.filter((item) => item.type === "status"),
-      editing: this.editing
+      editing: this.editing, editingItems: this.editingItems
     };
   }
 
@@ -146,34 +148,56 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       button.addEventListener("click", async (event) => {
         event.preventDefault();
         const action = button.dataset.vitruviumAction;
-        if (action === "toggle-edit") { this.editing[button.dataset.section] = !this.editing[button.dataset.section]; return this.render(); }
+        if (action === "toggle-edit") {
+          const section = button.dataset.section;
+          if (!Object.hasOwn(this.editing, section)) return;
+          this.editing[section] = !this.editing[section];
+          if (!this.editing[section]) this.editingItems = {};
+          return this.render();
+        }
         if (action === "toggle-description") return button.closest("article")?.classList.toggle("description-open");
         const handlers = {
           "adjust-inspiration": VitruviumActorSheet.#adjustInspiration,
           "adjust-characteristic": VitruviumActorSheet.#adjustCharacteristic,
           "create-item": VitruviumActorSheet.#createItem, "delete-item": VitruviumActorSheet.#deleteItem,
-          "edit-item": VitruviumActorSheet.#editItem, "create-ability": VitruviumActorSheet.#createAbility,
+          "edit-item": VitruviumActorSheet.#editItem, "save-item": VitruviumActorSheet.#saveItem,
+          "cancel-item": VitruviumActorSheet.#cancelItem, "create-ability": VitruviumActorSheet.#createAbility,
           "add-relationship": VitruviumActorSheet.#addRelationship, "adjust-relationship": VitruviumActorSheet.#adjustRelationship,
-          "remove-relationship": VitruviumActorSheet.#removeRelationship
+          "save-relationship": VitruviumActorSheet.#saveRelationship, "remove-relationship": VitruviumActorSheet.#removeRelationship,
+          "add-resource": VitruviumActorSheet.#addResource, "edit-resource": VitruviumActorSheet.#editResource,
+          "save-resource": VitruviumActorSheet.#saveResource, "cancel-resource": VitruviumActorSheet.#cancelResource,
+          "delete-resource": VitruviumActorSheet.#deleteResource
         };
-        return handlers[action]?.call(this, event, button);
+        try {
+          return await handlers[action]?.call(this, event, button);
+        } catch (error) {
+          console.error(`Vitruvium actor sheet action "${action}" failed.`, error);
+          ui.notifications.error("Не удалось сохранить изменения персонажа.");
+        }
       });
     });
-    this.element.querySelectorAll("[data-relationship-id]").forEach((field) => {
-      field.addEventListener("change", async () => VitruviumActorSheet.#updateRelationship.call(this, field));
-    });
-    this.element.querySelectorAll("[data-domain-id]").forEach((field) => {
-      field.addEventListener("change", async () => VitruviumActorSheet.#updateDomain.call(this, field));
+    this.element.querySelectorAll("[data-relationship-field=\"value\"]").forEach((field) => {
+      field.addEventListener("input", () => {
+        if (field.value !== "") field.value = clamp(field.value, getSetting("relationshipMin"), getSetting("relationshipMax"));
+      });
     });
     this.element.querySelectorAll("[data-relationship-image]").forEach((input) => {
-      input.addEventListener("change", async () => VitruviumActorSheet.#updateRelationshipImage.call(this, input));
+      input.addEventListener("change", async () => {
+        try {
+          await VitruviumActorSheet.#updateRelationshipImage.call(this, input);
+        } catch (error) {
+          console.error("Vitruvium relationship image update failed.", error);
+          ui.notifications.error("Не удалось сохранить изображение отношения.");
+        }
+      });
     });
   }
 
   static async #adjustCharacteristic(event, target) {
     const key = target.dataset.characteristic;
     const value = clamp((this.actor.system.characteristics?.[key]?.value ?? 1) + Number(target.dataset.delta), 1, getSetting("maxCharacteristic"));
-    return this.actor.update({ [`system.characteristics.${key}.value`]: value });
+    await this.actor.update({ [`system.characteristics.${key}.value`]: value });
+    return this.render();
   }
 
   static async #createItem(event, target) {
@@ -185,18 +209,54 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       return ui.notifications.warn("У персонажа не может быть больше 12 атрибутов.");
     }
     const labels = { domain: "Новый домен", ability: "Новая способность", attribute: "Новый атрибут", possession: "Новое имущество", status: "Новый статус" };
-    return this.actor.createEmbeddedDocuments("Item", [{ name: labels[type], type, system: type === "domain" ? { value: 1 } : {} }]);
+    const [item] = await this.actor.createEmbeddedDocuments("Item", [{ name: labels[type], type, system: type === "domain" ? { value: 1, description: "" } : { description: "" } }]);
+    this.editingItems[item.id] = true;
+    return this.render();
   }
 
   static async #deleteItem(event, target) {
     const item = this.actor.items.get(target.dataset.itemId);
     const ids = [target.dataset.itemId];
     if (item?.type === "domain") ids.push(...this.actor.items.filter((entry) => entry.type === "ability" && entry.system.domainId === item.id).map((entry) => entry.id));
-    return this.actor.deleteEmbeddedDocuments("Item", ids);
+    await this.actor.deleteEmbeddedDocuments("Item", ids);
+    delete this.editingItems[target.dataset.itemId];
+    return this.render();
   }
 
   static async #editItem(event, target) {
-    return (this.actor.items.get(target.dataset.itemId) ?? game.items.get(target.dataset.itemId))?.sheet.render(true);
+    this.editingItems[target.dataset.itemId] = true;
+    return this.render();
+  }
+
+  static async #saveItem(event, target) {
+    const item = this.actor.items.get(target.dataset.itemId);
+    if (!item) throw new Error(`Embedded item ${target.dataset.itemId} was not found.`);
+    const fields = [...target.closest("article").querySelectorAll("[data-item-field]")];
+    const updates = {};
+    for (const field of fields) {
+      if (field.dataset.itemId !== item.id) continue;
+      const value = field.type === "number" ? Number(field.value) : field.value;
+      if (field.dataset.itemField === "system.value") {
+        foundry.utils.setProperty(updates, field.dataset.itemField, clamp(value, 1, 3));
+      } else {
+        foundry.utils.setProperty(updates, field.dataset.itemField, value);
+      }
+    }
+    await item.update(updates);
+    const sections = { domain: "domains", ability: "domains", attribute: "attributes", possession: "possessions", status: "statuses" };
+    const section = sections[item.type];
+    if (section) this.editing[section] = false;
+    this.editingItems = {};
+    return this.render();
+  }
+
+  static async #cancelItem(event, target) {
+    const item = this.actor.items.get(target.dataset.itemId);
+    const sections = { domain: "domains", ability: "domains", attribute: "attributes", possession: "possessions", status: "statuses" };
+    const section = sections[item?.type];
+    if (section) this.editing[section] = false;
+    this.editingItems = {};
+    return this.render();
   }
 
   static async #createAbility(event, target) {
@@ -205,63 +265,130 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     const level = clamp(domain.system.value, 1, 3);
     const abilities = this.actor.items.filter((item) => item.type === "ability" && item.system.domainId === domain.id);
     if (abilities.length >= level * 2) return ui.notifications.warn(`У домена «${domain.name}» максимум ${level * 2} способности.`);
-    return this.actor.createEmbeddedDocuments("Item", [{ name: "Новая способность", type: "ability", system: { domainId: domain.id, description: "" } }]);
+    const [ability] = await this.actor.createEmbeddedDocuments("Item", [{ name: "Новая способность", type: "ability", system: { domainId: domain.id, description: "" } }]);
+    this.editingItems[ability.id] = true;
+    return this.render();
   }
 
   static async #adjustInspiration(event, target) {
-    const value = clamp((this.actor.system.inspiration ?? 0) + Number(target.dataset.delta), 0, getSetting("maxInspiration"));
-    return this.actor.update({ "system.inspiration": value });
+    const value = clamp((this.actor.system.inspiration ?? 0) + Number(target.dataset.delta), 0, 6);
+    await this.actor.update({ "system.inspiration": value });
+    return this.render();
   }
 
   static async #addRelationship() {
     const relationships = [...(this.actor.system.relationships ?? [])];
     relationships.push({ id: foundry.utils.randomID(), name: "Новые отношения", value: 0, portrait: "", entityUuid: "" });
-    return this.actor.update({ "system.relationships": relationships });
+    await this.actor.update({ "system.relationships": relationships });
+    return this.render();
   }
 
   static async #adjustRelationship(event, target) {
+    if (this.editing.relationships) {
+      const field = target.closest("article")?.querySelector("[data-relationship-field=\"value\"]");
+      if (field) field.value = clamp(Number(field.value) + Number(target.dataset.delta), getSetting("relationshipMin"), getSetting("relationshipMax"));
+      return;
+    }
     const relationships = foundry.utils.deepClone(this.actor.system.relationships ?? []);
     const relationship = relationships.find((entry) => entry.id === target.dataset.id);
     if (!relationship) return;
     relationship.value = clamp(relationship.value + Number(target.dataset.delta), getSetting("relationshipMin"), getSetting("relationshipMax"));
-    return this.actor.update({ "system.relationships": relationships });
+    await this.actor.update({ "system.relationships": relationships });
+    return this.render();
   }
 
   static async #removeRelationship(event, target) {
     const relationships = (this.actor.system.relationships ?? []).filter((entry) => entry.id !== target.dataset.id);
-    return this.actor.update({ "system.relationships": relationships });
+    await this.actor.update({ "system.relationships": relationships });
+    return this.render();
   }
 
-  static async #updateRelationship(field) {
+  static async #saveRelationship(event, target) {
     const relationships = foundry.utils.deepClone(this.actor.system.relationships ?? []);
-    const relationship = relationships.find((entry) => entry.id === field.dataset.relationshipId);
+    const relationship = relationships.find((entry) => entry.id === target.dataset.id);
     if (!relationship) return;
-    relationship[field.dataset.relationshipField] = field.value;
-    return this.actor.update({ "system.relationships": relationships });
+    target.closest("article").querySelectorAll("[data-relationship-field]").forEach((field) => {
+      const value = field.dataset.relationshipField === "value" ? Number(field.value) : field.value;
+      relationship[field.dataset.relationshipField] = value;
+    });
+    relationship.value = clamp(relationship.value, getSetting("relationshipMin"), getSetting("relationshipMax"));
+    await this.actor.update({ "system.relationships": relationships });
+    this.editing.relationships = false;
+    return this.render();
   }
 
   static async #updateRelationshipImage(input) {
     const file = input.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = async () => {
-      const relationships = foundry.utils.deepClone(this.actor.system.relationships ?? []);
-      const relationship = relationships.find((entry) => entry.id === input.dataset.relationshipImage);
-      if (relationship) { relationship.portrait = reader.result; await this.actor.update({ "system.relationships": relationships }); }
-    };
-    reader.readAsDataURL(file);
+    return new Promise((resolve, reject) => {
+      reader.onerror = () => reject(reader.error ?? new Error("Could not read the relationship image."));
+      reader.onload = async () => {
+        try {
+          const relationships = foundry.utils.deepClone(this.actor.system.relationships ?? []);
+          const relationship = relationships.find((entry) => entry.id === input.dataset.relationshipImage);
+          if (!relationship || typeof reader.result !== "string") throw new Error("Relationship or image data is unavailable.");
+          relationship.portrait = reader.result;
+          await this.actor.update({ "system.relationships": relationships });
+          this.render();
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      };
+      try {
+        reader.readAsDataURL(file);
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 
-  static async #updateDomain(field) {
-    const domain = this.actor.items.get(field.dataset.domainId);
-    if (!domain) return;
-    const updates = { name: field.value };
-    if (field.dataset.domainField === "level") updates["system.value"] = clamp(field.value, 1, 3);
-    return domain.update(updates);
+  static async #addResource() {
+    const resources = foundry.utils.deepClone(this.actor.system.resources ?? []);
+    const resource = { id: foundry.utils.randomID(), name: "Новый ресурс", value: 0, max: 0 };
+    resources.push(resource);
+    this.editingItems[resource.id] = true;
+    await this.actor.update({ "system.resources": resources });
+    return this.render();
+  }
+
+  static async #editResource(event, target) {
+    this.editingItems[target.dataset.resourceId] = true;
+    return this.render();
+  }
+
+  static async #saveResource(event, target) {
+    const resources = foundry.utils.deepClone(this.actor.system.resources ?? []);
+    const resourceIndex = resources.findIndex((entry, index) => (entry.id ?? `resource-${index}`) === target.dataset.resourceId);
+    const resource = resources[resourceIndex];
+    if (!resource) throw new Error(`Resource ${target.dataset.resourceId} was not found.`);
+    target.closest("article").querySelectorAll("[data-resource-field]").forEach((field) => {
+      if (field.dataset.resourceId !== target.dataset.resourceId) return;
+      if (field.dataset.resourceField === "name") resource.name = field.value.trim() || "Ресурс";
+      else resource[field.dataset.resourceField] = Math.max(0, Number(field.value) || 0);
+    });
+    resource.value = clamp(resource.value, 0, resource.max);
+    await this.actor.update({ "system.resources": resources });
+    this.editing.resources = false;
+    this.editingItems = {};
+    return this.render();
+  }
+
+  static async #cancelResource(event, target) {
+    this.editing.resources = false;
+    this.editingItems = {};
+    return this.render();
+  }
+
+  static async #deleteResource(event, target) {
+    const resources = (this.actor.system.resources ?? []).filter((entry, index) => (entry.id ?? `resource-${index}`) !== target.dataset.resourceId);
+    await this.actor.update({ "system.resources": resources });
+    return this.render();
   }
 }
 
-class VitruviumItemSheet extends foundry.applications.sheets.ItemSheetV2 {
+class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ItemSheetV2) {
   static DEFAULT_OPTIONS = { classes: ["vitruvium", "sheet", "item"], position: { width: 620, height: 560 }, form: { closeOnSubmit: false, submitOnChange: true } };
   static PARTS = { main: { template: "systems/vitruvium/templates/item-sheet.hbs" } };
   get item() { return this.object ?? this.document; }
@@ -307,7 +434,6 @@ function registerSettings() {
   const settings = [
     ["maxDice", 6, 1, 99, "Максимум кубиков в пуле"],
     ["maxCharacteristic", 3, 1, 99, "Максимальный уровень характеристики"],
-    ["maxInspiration", 6, 0, 99, "Максимальный запас вдохновения"],
     ["relationshipMin", -6, -99, 99, "Минимальное значение отношений"],
     ["relationshipMax", 6, -99, 99, "Максимальное значение отношений"]
   ];
@@ -325,7 +451,7 @@ async function normalizeActorLimits() {
     }
     await actor.update({
       "system.characteristics": characteristics,
-      "system.inspiration": clamp(actor.system.inspiration, 0, getSetting("maxInspiration"))
+      "system.inspiration": clamp(actor.system.inspiration, 0, 6)
     });
   }
 }
@@ -341,12 +467,29 @@ Hooks.once("init", () => {
 Hooks.on("preCreateActor", (actor) => {
   if (actor.type !== "character") return;
   const characteristics = Object.fromEntries(Object.keys(CHARACTERISTICS).map((key) => [key, { value: 1 }]));
-  actor.updateSource({ system: { characteristics, inspiration: 0, relationships: [] } });
+  actor.updateSource({ system: { characteristics, inspiration: 0, relationships: [], resources: [] } });
 });
 
 Hooks.on("preUpdateActor", (actor, change) => {
   const incoming = change.system ?? {};
-  if (incoming.inspiration !== undefined) incoming.inspiration = clamp(incoming.inspiration, 0, getSetting("maxInspiration"));
+  if (incoming.inspiration !== undefined) incoming.inspiration = clamp(incoming.inspiration, 0, 6);
+  const resources = incoming.resources ?? change["system.resources"];
+  if (resources !== undefined) {
+    if (!Array.isArray(resources)) throw new Error("Vitruvium actor resources must be an array.");
+    const normalizedResources = resources.map((resource) => {
+      const maximum = Number(resource.max);
+      const current = Number(resource.value);
+      const max = Number.isFinite(maximum) ? Math.max(0, maximum) : 0;
+      return {
+        id: resource.id ?? foundry.utils.randomID(),
+        name: String(resource.name ?? "Ресурс"),
+        max,
+        value: Number.isFinite(current) ? clamp(current, 0, max) : 0
+      };
+    });
+    if (incoming.resources !== undefined) incoming.resources = normalizedResources;
+    else change["system.resources"] = normalizedResources;
+  }
   const changedCharacteristics = incoming.characteristics ?? {};
   for (const key of Object.keys(CHARACTERISTICS)) {
     const value = changedCharacteristics[key]?.value;
