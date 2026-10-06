@@ -14,19 +14,17 @@ const getSetting = (key) => game.settings.get(SYSTEM_ID, key);
 const dieSuccess = (face) => (face === 6 ? 2 : face >= 4 ? 1 : 0);
 
 /** Roll a special d6 pool. Each die yields 0, 1 or 2 successes. */
-async function rollPool({ dice, difficulty, advantage = 0, hindrance = 0, bonusSuccesses = 0, useInspiration = false, domainLevel = 0, speaker }) {
+async function rollPool({ dice, advantage = 0, hindrance = 0, speaker }) {
   const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
-  const maxAdvantage = Math.max(0, Number(getSetting("maxAdvantage")) || 10);
-  const maxHindrance = Math.max(0, Number(getSetting("maxHindrance")) || 10);
-  const count = clamp(dice + (useInspiration ? 1 : 0), 1, maxDice + 1);
-  const net = clamp(advantage, 0, maxAdvantage) - clamp(hindrance, 0, maxHindrance);
+  const count = clamp(dice, 1, maxDice);
+  const net = clamp(advantage, 0, 2) - clamp(hindrance, 0, 2);
   const attempts = Math.abs(net) + 1;
   const pools = [];
 
   for (let i = 0; i < attempts; i += 1) {
     const roll = await (new Roll(`${count}d6`)).evaluate();
-    const faces = roll.dice[0].results.map((result) => result.result);
-    pools.push({ faces, successes: faces.reduce((total, face) => total + dieSuccess(face), 0), roll });
+    const faces = roll.dice[0].results.map((result) => dieSuccess(result.result));
+    pools.push({ faces, successes: faces.reduce((total, face) => total + face, 0) });
   }
 
   const chosen = pools.reduce((selected, pool) => {
@@ -34,27 +32,21 @@ async function rollPool({ dice, difficulty, advantage = 0, hindrance = 0, bonusS
     if (net < 0) return pool.successes < selected.successes ? pool : selected;
     return selected;
   });
-  const domainBonus = Math.max(0, Number(domainLevel) || 0);
-  const total = chosen.successes + Math.max(0, Number(bonusSuccesses) || 0) + domainBonus;
-  const success = total >= difficulty;
   const rolls = pools.map((pool, index) => `<li${pool === chosen ? " class=\"chosen\"" : ""}>Бросок ${index + 1}: ${pool.faces.join(", ")} — <b>${pool.successes}</b> успех(а/ов)</li>`).join("");
   const mode = net > 0 ? `Преимущество ×${net}` : net < 0 ? `Помеха ×${Math.abs(net)}` : "Обычный бросок";
-  const labels = [];
-  if (useInspiration) labels.push("вдохновение");
-  if (domainLevel) labels.push(`домен Lv.${domainLevel}`);
-  const content = `<section class="vitruvium-chat-card"><h3>${success ? "Успех" : "Провал"}</h3><p>${mode}. Сложность: <b>${difficulty}</b>. Кубиков: <b>${count}</b>.</p><ul>${rolls}</ul><p>Итог: <b>${total}</b> успех(а/ов)${labels.length ? ` (${labels.join(", ")})` : ""}.</p></section>`;
-  await ChatMessage.create({ content, speaker, rolls: pools.map((pool) => pool.roll.toJSON()) });
+  const content = `<section class="vitruvium-chat-card"><h3>Бросок Vitruvium</h3><p>${mode}. Кубиков: <b>${count}</b>.</p><ul>${rolls}</ul><p>Итог: <b>${chosen.successes}</b> успех(а/ов).</p></section>`;
+  await ChatMessage.create({ content, speaker });
 }
 
 const trayState = {
-  dice: 1, difficulty: 1, advantage: 0, hindrance: 0, speaker: null
+  dice: 3, advantage: 0, hindrance: 0
 };
 
 function chatRoot(html) {
   return html instanceof HTMLElement ? html : html?.[0] ?? html;
 }
 
-/** Persistent Dice Tray-style panel below the chat composer. */
+/** Persistent compact Dice Tray below the chat composer. */
 function renderChatTray(html) {
   const root = chatRoot(html) ?? document.querySelector("#chat");
   if (!root?.querySelector) return;
@@ -65,49 +57,61 @@ function renderChatTray(html) {
   const tray = document.createElement("section");
   tray.id = "vitruvium-dice-tray";
   tray.className = "vitruvium-dice-tray";
+  const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
+  trayState.dice = clamp(trayState.dice, 1, maxDice);
   tray.innerHTML = `
-    <div class="tray-title">Бросок Vitruvium</div>
-    <div class="dice-controls">
+    <div class="tray-counter">
       <span>Кубики</span>
-      <button type="button" data-tray-action="change-dice" data-delta="-1" aria-label="Убрать кубик">−</button>
+      <button type="button" data-tray-action="change" data-key="dice" data-delta="-1" aria-label="Уменьшить количество кубиков">−</button>
       <b>${trayState.dice}</b>
-      <button type="button" data-tray-action="change-dice" data-delta="1" aria-label="Добавить кубик">+</button>
+      <button type="button" data-tray-action="change" data-key="dice" data-delta="1" aria-label="Увеличить количество кубиков">+</button>
+    </div>
+    <div class="tray-counter">
+      <span>Преимущество</span>
+      <button type="button" data-tray-action="change" data-key="advantage" data-delta="-1" aria-label="Уменьшить преимущество">−</button>
+      <b>${trayState.advantage}</b>
+      <button type="button" data-tray-action="change" data-key="advantage" data-delta="1" aria-label="Увеличить преимущество">+</button>
+    </div>
+    <div class="tray-counter">
+      <span>Помеха</span>
+      <button type="button" data-tray-action="change" data-key="hindrance" data-delta="-1" aria-label="Уменьшить помеху">−</button>
+      <b>${trayState.hindrance}</b>
+      <button type="button" data-tray-action="change" data-key="hindrance" data-delta="1" aria-label="Увеличить помеху">+</button>
     </div>
     <button type="button" class="tray-roll" data-tray-action="roll">Бросить</button>`;
   target.append(tray);
   tray.addEventListener("click", async (event) => {
-    const button = event.target.closest("button");
+    const button = event.target instanceof Element ? event.target.closest("button") : null;
     if (!button) return;
-    if (button.dataset.trayAction === "change-dice") {
-      trayState.dice = clamp(trayState.dice + Number(button.dataset.delta), 1, getSetting("maxDice"));
+    event.preventDefault();
+    if (button.dataset.trayAction === "change") {
+      const key = button.dataset.key;
+      const limit = key === "dice" ? maxDice : 2;
+      if (!["dice", "advantage", "hindrance"].includes(key)) return;
+      trayState[key] = clamp(trayState[key] + Number(button.dataset.delta), key === "dice" ? 1 : 0, limit);
       renderChatTray(root);
       return;
     }
     if (button.dataset.trayAction === "roll") {
-      const actor = game.user?.character;
-      const dice = clamp(trayState.dice, 1, getSetting("maxDice"));
-      await rollPool({
-        dice,
-        difficulty: trayState.difficulty,
-        advantage: trayState.advantage,
-        hindrance: trayState.hindrance,
-        speaker: trayState.speaker ?? ChatMessage.getSpeaker()
-      });
+      button.disabled = true;
+      try {
+        await rollPool({
+          dice: trayState.dice,
+          advantage: trayState.advantage,
+          hindrance: trayState.hindrance,
+          speaker: ChatMessage.getSpeaker()
+        });
+      } catch (error) {
+        console.error("Vitruvium Dice Tray roll failed.", error);
+        ui.notifications.error("Не удалось выполнить бросок Vitruvium.");
+      } finally {
+        button.disabled = false;
+      }
     }
   });
-  tray.addEventListener("change", (event) => {
-    const field = event.target.dataset.trayField;
-    if (!field) return;
-    trayState[field] = event.target.type === "number" ? Number(event.target.value) : event.target.value;
-    renderChatTray(root);
-  });
 }
 
-function trayCounter(label, key, value, min, max) {
-  return `<div class="tray-counter"><span>${label}</span><button type="button" data-tray-action="change" data-key="${key}" data-delta="-1" data-min="${min}" data-max="${max}">−</button><b>${value}</b><button type="button" data-tray-action="change" data-key="${key}" data-delta="1" data-min="${min}" data-max="${max}">+</button></div>`;
-}
-
-class VitruviumActorSheet extends foundry.applications.sheets.ActorSheetV2 {
+class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2) {
   static DEFAULT_OPTIONS = {
     classes: ["vitruvium", "sheet", "actor"], position: { width: 980, height: 820 },
     form: { closeOnSubmit: false, submitOnChange: true }
@@ -302,8 +306,6 @@ class VitruviumAspectManager extends foundry.applications.api.HandlebarsApplicat
 function registerSettings() {
   const settings = [
     ["maxDice", 6, 1, 99, "Максимум кубиков в пуле"],
-    ["maxAdvantage", 2, 0, 10, "Максимум преимуществ"],
-    ["maxHindrance", 2, 0, 10, "Максимум помех"],
     ["maxCharacteristic", 3, 1, 99, "Максимальный уровень характеристики"],
     ["maxInspiration", 6, 0, 99, "Максимальный запас вдохновения"],
     ["relationshipMin", -6, -99, 99, "Минимальное значение отношений"],
