@@ -15,9 +15,11 @@ const dieSuccess = (face) => (face === 6 ? 2 : face >= 4 ? 1 : 0);
 
 /** Roll a special d6 pool. Each die yields 0, 1 or 2 successes. */
 async function rollPool({ dice, difficulty, advantage = 0, hindrance = 0, bonusSuccesses = 0, useInspiration = false, domainLevel = 0, speaker }) {
-  const maxDice = getSetting("maxDice");
+  const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
+  const maxAdvantage = Math.max(0, Number(getSetting("maxAdvantage")) || 10);
+  const maxHindrance = Math.max(0, Number(getSetting("maxHindrance")) || 10);
   const count = clamp(dice + (useInspiration ? 1 : 0), 1, maxDice + 1);
-  const net = clamp(advantage, 0, 2) - clamp(hindrance, 0, 2);
+  const net = clamp(advantage, 0, maxAdvantage) - clamp(hindrance, 0, maxHindrance);
   const attempts = Math.abs(net) + 1;
   const pools = [];
 
@@ -59,13 +61,16 @@ function renderChatTray(html) {
   if (!root?.querySelector) return;
   root.querySelector("#vitruvium-dice-tray")?.remove();
   const chatForm = root.querySelector("#chat-form");
-  const target = root.querySelector("#chat-controls") ?? chatForm?.parentElement;
+  const target = root.querySelector("#chat-controls") ?? chatForm?.parentElement ?? root;
   if (!target) return;
   const tray = document.createElement("section");
   tray.id = "vitruvium-dice-tray";
   tray.className = "vitruvium-dice-tray";
   tray.innerHTML = `
     <div class="tray-title">Бросок Vitruvium</div>
+    <div class="dice-buttons" aria-label="Количество кубиков">
+      ${Array.from({ length: Math.max(1, Number(getSetting("maxDice")) || 6) }, (_, index) => `<button type="button" data-tray-action="set-dice" data-dice="${index + 1}" class="${trayState.dice === index + 1 ? "active" : ""}">${index + 1}d6</button>`).join("")}
+    </div>
     <label class="tray-select">Характеристика
       <select data-tray-field="characteristic">${Object.entries(CHARACTERISTICS).map(([key, item]) => `<option value="${key}" ${trayState.characteristic === key ? "selected" : ""}>${item.label}</option>`).join("")}</select>
     </label>
@@ -89,6 +94,11 @@ function renderChatTray(html) {
       const key = button.dataset.key;
       const max = Number(button.dataset.max);
       trayState[key] = clamp(trayState[key] + Number(button.dataset.delta), Number(button.dataset.min), max);
+      renderChatTray(root);
+      return;
+    }
+    if (button.dataset.trayAction === "set-dice") {
+      trayState.dice = Number(button.dataset.dice);
       renderChatTray(root);
       return;
     }
@@ -133,6 +143,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     super(options);
     this.editing = { characteristics: false, domains: false, attributes: false, possessions: false, statuses: false, relationships: false };
   }
+  get actor() { return this.object; }
   get title() { return this.actor.name; }
 
   async _prepareContext(options) {
@@ -275,7 +286,8 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
 class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ItemSheetV2) {
   static DEFAULT_OPTIONS = { classes: ["vitruvium", "sheet", "item"], position: { width: 620, height: 560, resizable: true }, form: { closeOnSubmit: false, submitOnChange: true } };
   static PARTS = { main: { template: "systems/vitruvium/templates/item-sheet.hbs" } };
-  get title() { return this.item?.name || super.title; }
+  get item() { return this.object; }
+  get title() { return this.item.name || super.title; }
   get isEditable() {
     const mayEditAspect = game.user.isGM || game.user.role >= CONST.USER_ROLES.ASSISTANT;
     return super.isEditable && (this.item.type !== "aspect" || mayEditAspect);
@@ -316,8 +328,8 @@ class VitruviumAspectManager extends foundry.applications.api.HandlebarsApplicat
 function registerSettings() {
   const settings = [
     ["maxDice", 6, 1, 99, "Максимум кубиков в пуле"],
-    ["maxAdvantage", 2, 0, 2, "Максимум преимуществ"],
-    ["maxHindrance", 2, 0, 2, "Максимум помех"],
+    ["maxAdvantage", 10, 0, 99, "Максимум преимуществ"],
+    ["maxHindrance", 10, 0, 99, "Максимум помех"],
     ["maxCharacteristic", 3, 1, 99, "Максимальный уровень характеристики"],
     ["maxInspiration", 6, 0, 99, "Максимальный запас вдохновения"],
     ["relationshipMin", -6, -99, 99, "Минимальное значение отношений"],
@@ -402,7 +414,9 @@ Hooks.on("preUpdateItem", (item, change, options, userId) => protectAspects(item
 Hooks.on("preDeleteItem", (item, options, userId) => protectAspects(item, userId));
 
 Hooks.on("renderChatLog", (app, html) => renderChatTray(html));
+Hooks.on("renderChat", (app, html) => renderChatTray(html));
 Hooks.once("ready", () => {
   game.vitruvium = { rollPool, renderChatTray };
   if (ui.chat?.element) renderChatTray(ui.chat.element);
+  if (ui.chat?.isView) renderChatTray(ui.chat.element);
 });

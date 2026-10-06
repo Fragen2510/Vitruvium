@@ -62,6 +62,9 @@
 .vitruvium .aspect-list article p { margin:4px 0; color:#9aa8b5; }
 .vitruvium .vitruvium-dice-tray { display:grid; gap:8px; padding:11px; border:1px solid #354653; border-radius:11px; background:#151b21; color:#edf3f8; }
 .vitruvium .tray-title { color:#f0a84a; font-weight:700; }
+.vitruvium .dice-buttons { display:grid; grid-template-columns:repeat(auto-fit,minmax(58px,1fr)); gap:5px; }
+.vitruvium .dice-buttons button { padding:6px; border-radius:6px; }
+.vitruvium .dice-buttons button.active { background:#f0a84a; color:#111; font-weight:700; }
 .vitruvium .tray-select, .vitruvium .tray-toggle { display:grid; gap:4px; font-size:.78rem; color:#aab7c4; }
 .vitruvium .tray-select select, .vitruvium .tray-toggle input { width:100%; }
 .vitruvium .tray-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:5px; }
