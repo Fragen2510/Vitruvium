@@ -47,8 +47,7 @@ async function rollPool({ dice, difficulty, advantage = 0, hindrance = 0, bonusS
 }
 
 const trayState = {
-  dice: 1, difficulty: 1, characteristic: "physique", advantage: 0, hindrance: 0,
-  useInspiration: false, domainId: "", useDomain: false, speaker: null
+  dice: 1, difficulty: 1, advantage: 0, hindrance: 0, speaker: null
 };
 
 function chatRoot(html) {
@@ -71,20 +70,10 @@ function renderChatTray(html) {
     <div class="dice-buttons" aria-label="Количество кубиков">
       ${Array.from({ length: Math.max(1, Number(getSetting("maxDice")) || 6) }, (_, index) => `<button type="button" data-tray-action="set-dice" data-dice="${index + 1}" class="${trayState.dice === index + 1 ? "active" : ""}">${index + 1}d6</button>`).join("")}
     </div>
-    <label class="tray-select">Характеристика
-      <select data-tray-field="characteristic">${Object.entries(CHARACTERISTICS).map(([key, item]) => `<option value="${key}" ${trayState.characteristic === key ? "selected" : ""}>${item.label}</option>`).join("")}</select>
-    </label>
-    <div class="tray-grid">
-      ${trayCounter("Кубики", "dice", trayState.dice, 1, getSetting("maxDice"))}
-      ${trayCounter("Сложность", "difficulty", trayState.difficulty, 1, 99)}
-      ${trayCounter("Преимущество", "advantage", trayState.advantage, 0, getSetting("maxAdvantage"))}
-      ${trayCounter("Помеха", "hindrance", trayState.hindrance, 0, getSetting("maxHindrance"))}
+    <div class="tray-difficulty">
+      <span>Сложность</span>
+      <input type="number" min="1" max="99" value="${trayState.difficulty}" data-tray-field="difficulty" aria-label="Сложность">
     </div>
-    <label class="tray-toggle"><input type="checkbox" data-tray-field="useInspiration" ${trayState.useInspiration ? "checked" : ""}> Потратить 1 вдохновение</label>
-    <label class="tray-select">Домен
-      <select data-tray-field="domainId"><option value="">Не выбран</option>${(game.user?.character?.items ?? []).filter((item) => item.type === "domain").map((item) => `<option value="${item.id}" ${trayState.domainId === item.id ? "selected" : ""}>${item.name} — Lv.${item.system?.value ?? 1}</option>`).join("")}</select>
-    </label>
-    <label class="tray-toggle"><input type="checkbox" data-tray-field="useDomain" ${trayState.useDomain ? "checked" : ""}> Использовать домен</label>
     <button type="button" class="tray-roll" data-tray-action="roll">Бросить</button>`;
   target.append(tray);
   tray.addEventListener("click", async (event) => {
@@ -104,27 +93,20 @@ function renderChatTray(html) {
     }
     if (button.dataset.trayAction === "roll") {
       const actor = game.user?.character;
-      const domain = actor?.items?.get(trayState.domainId);
       const dice = clamp(trayState.dice, 1, getSetting("maxDice"));
-      const domainLevel = trayState.useDomain ? Number(domain?.system?.value ?? 0) : 0;
       await rollPool({
         dice,
         difficulty: trayState.difficulty,
         advantage: trayState.advantage,
         hindrance: trayState.hindrance,
-        useInspiration: trayState.useInspiration && (actor?.system?.inspiration ?? 0) > 0,
-        domainLevel,
         speaker: trayState.speaker ?? ChatMessage.getSpeaker()
       });
-      if (trayState.useInspiration && (actor?.system?.inspiration ?? 0) > 0) {
-        await actor.update({ "system.inspiration": actor.system.inspiration - 1 });
-      }
     }
   });
   tray.addEventListener("change", (event) => {
     const field = event.target.dataset.trayField;
     if (!field) return;
-    trayState[field] = event.target.type === "checkbox" ? event.target.checked : event.target.value;
+    trayState[field] = event.target.type === "number" ? Number(event.target.value) : event.target.value;
     renderChatTray(root);
   });
 }
@@ -133,7 +115,7 @@ function trayCounter(label, key, value, min, max) {
   return `<div class="tray-counter"><span>${label}</span><button type="button" data-tray-action="change" data-key="${key}" data-delta="-1" data-min="${min}" data-max="${max}">−</button><b>${value}</b><button type="button" data-tray-action="change" data-key="${key}" data-delta="1" data-min="${min}" data-max="${max}">+</button></div>`;
 }
 
-class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2) {
+class VitruviumActorSheet extends foundry.applications.sheets.ActorSheetV2 {
   static DEFAULT_OPTIONS = {
     classes: ["vitruvium", "sheet", "actor"], position: { width: 980, height: 820, resizable: true },
     form: { closeOnSubmit: false, submitOnChange: true }
@@ -143,7 +125,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     super(options);
     this.editing = { characteristics: false, domains: false, attributes: false, possessions: false, statuses: false, relationships: false };
   }
-  get actor() { return this.object; }
+  get actor() { return this.object ?? this.document; }
   get title() { return this.actor.name; }
 
   async _prepareContext(options) {
@@ -283,10 +265,10 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
   }
 }
 
-class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ItemSheetV2) {
+class VitruviumItemSheet extends foundry.applications.sheets.ItemSheetV2 {
   static DEFAULT_OPTIONS = { classes: ["vitruvium", "sheet", "item"], position: { width: 620, height: 560, resizable: true }, form: { closeOnSubmit: false, submitOnChange: true } };
   static PARTS = { main: { template: "systems/vitruvium/templates/item-sheet.hbs" } };
-  get item() { return this.object; }
+  get item() { return this.object ?? this.document; }
   get title() { return this.item.name || super.title; }
   get isEditable() {
     const mayEditAspect = game.user.isGM || game.user.role >= CONST.USER_ROLES.ASSISTANT;
@@ -328,8 +310,8 @@ class VitruviumAspectManager extends foundry.applications.api.HandlebarsApplicat
 function registerSettings() {
   const settings = [
     ["maxDice", 6, 1, 99, "Максимум кубиков в пуле"],
-    ["maxAdvantage", 10, 0, 99, "Максимум преимуществ"],
-    ["maxHindrance", 10, 0, 99, "Максимум помех"],
+    ["maxAdvantage", 2, 0, 10, "Максимум преимуществ"],
+    ["maxHindrance", 2, 0, 10, "Максимум помех"],
     ["maxCharacteristic", 3, 1, 99, "Максимальный уровень характеристики"],
     ["maxInspiration", 6, 0, 99, "Максимальный запас вдохновения"],
     ["relationshipMin", -6, -99, 99, "Минимальное значение отношений"],
