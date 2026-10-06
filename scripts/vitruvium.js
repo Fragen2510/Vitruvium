@@ -70,10 +70,10 @@ function renderChatTray(html) {
       <select data-tray-field="characteristic">${Object.entries(CHARACTERISTICS).map(([key, item]) => `<option value="${key}" ${trayState.characteristic === key ? "selected" : ""}>${item.label}</option>`).join("")}</select>
     </label>
     <div class="tray-grid">
-      <div class="tray-readonly"><span>Кубики</span><b id="vitruvium-dice-count">${trayState.dice}</b></div>
+      ${trayCounter("Кубики", "dice", trayState.dice, 1, getSetting("maxDice"))}
       ${trayCounter("Сложность", "difficulty", trayState.difficulty, 1, 99)}
-      ${trayCounter("Преимущество", "advantage", trayState.advantage, 0, 2)}
-      ${trayCounter("Помеха", "hindrance", trayState.hindrance, 0, 2)}
+      ${trayCounter("Преимущество", "advantage", trayState.advantage, 0, getSetting("maxAdvantage"))}
+      ${trayCounter("Помеха", "hindrance", trayState.hindrance, 0, getSetting("maxHindrance"))}
     </div>
     <label class="tray-toggle"><input type="checkbox" data-tray-field="useInspiration" ${trayState.useInspiration ? "checked" : ""}> Потратить 1 вдохновение</label>
     <label class="tray-select">Домен
@@ -95,11 +95,8 @@ function renderChatTray(html) {
     if (button.dataset.trayAction === "roll") {
       const actor = game.user?.character;
       const domain = actor?.items?.get(trayState.domainId);
-      const characteristic = Number(actor?.system?.characteristics?.[trayState.characteristic]?.value ?? 1);
+      const dice = clamp(trayState.dice, 1, getSetting("maxDice"));
       const domainLevel = trayState.useDomain ? Number(domain?.system?.value ?? 0) : 0;
-      const dice = Math.max(1, characteristic);
-      trayState.dice = dice;
-      root.querySelector("#vitruvium-dice-count")?.replaceChildren(document.createTextNode(String(dice)));
       await rollPool({
         dice,
         difficulty: trayState.difficulty,
@@ -128,7 +125,7 @@ function trayCounter(label, key, value, min, max) {
 
 class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2) {
   static DEFAULT_OPTIONS = {
-    classes: ["vitruvium", "sheet", "actor"], position: { width: 760, height: 720 },
+    classes: ["vitruvium", "sheet", "actor"], position: { width: 980, height: 820, resizable: true },
     form: { closeOnSubmit: false, submitOnChange: true }
   };
   static PARTS = { main: { template: "systems/vitruvium/templates/actor-sheet.hbs" } };
@@ -161,6 +158,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         event.preventDefault();
         const action = button.dataset.vitruviumAction;
         if (action === "toggle-edit") { this.editing[button.dataset.section] = !this.editing[button.dataset.section]; return this.render(); }
+        if (action === "toggle-description") return button.closest("article")?.classList.toggle("description-open");
         const handlers = {
           "adjust-inspiration": VitruviumActorSheet.#adjustInspiration,
           "adjust-characteristic": VitruviumActorSheet.#adjustCharacteristic,
@@ -171,6 +169,15 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         };
         return handlers[action]?.call(this, event, button);
       });
+    });
+    this.element.querySelectorAll("[data-relationship-id]").forEach((field) => {
+      field.addEventListener("change", async () => VitruviumActorSheet.#updateRelationship.call(this, field));
+    });
+    this.element.querySelectorAll("[data-domain-id]").forEach((field) => {
+      field.addEventListener("change", async () => VitruviumActorSheet.#updateDomain.call(this, field));
+    });
+    this.element.querySelectorAll("[data-relationship-image]").forEach((input) => {
+      input.addEventListener("change", async () => VitruviumActorSheet.#updateRelationshipImage.call(this, input));
     });
   }
 
@@ -235,11 +242,40 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     const relationships = (this.actor.system.relationships ?? []).filter((entry) => entry.id !== target.dataset.id);
     return this.actor.update({ "system.relationships": relationships });
   }
+
+  static async #updateRelationship(field) {
+    const relationships = foundry.utils.deepClone(this.actor.system.relationships ?? []);
+    const relationship = relationships.find((entry) => entry.id === field.dataset.relationshipId);
+    if (!relationship) return;
+    relationship[field.dataset.relationshipField] = field.value;
+    return this.actor.update({ "system.relationships": relationships });
+  }
+
+  static async #updateRelationshipImage(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const relationships = foundry.utils.deepClone(this.actor.system.relationships ?? []);
+      const relationship = relationships.find((entry) => entry.id === input.dataset.relationshipImage);
+      if (relationship) { relationship.portrait = reader.result; await this.actor.update({ "system.relationships": relationships }); }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  static async #updateDomain(field) {
+    const domain = this.actor.items.get(field.dataset.domainId);
+    if (!domain) return;
+    const updates = { name: field.value };
+    if (field.dataset.domainField === "level") updates["system.value"] = clamp(field.value, 1, 3);
+    return domain.update(updates);
+  }
 }
 
 class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ItemSheetV2) {
-  static DEFAULT_OPTIONS = { classes: ["vitruvium", "sheet", "item"], position: { width: 540, height: 480 }, form: { closeOnSubmit: false, submitOnChange: true } };
+  static DEFAULT_OPTIONS = { classes: ["vitruvium", "sheet", "item"], position: { width: 620, height: 560, resizable: true }, form: { closeOnSubmit: false, submitOnChange: true } };
   static PARTS = { main: { template: "systems/vitruvium/templates/item-sheet.hbs" } };
+  get title() { return this.item?.name || super.title; }
   get isEditable() {
     const mayEditAspect = game.user.isGM || game.user.role >= CONST.USER_ROLES.ASSISTANT;
     return super.isEditable && (this.item.type !== "aspect" || mayEditAspect);
@@ -280,6 +316,8 @@ class VitruviumAspectManager extends foundry.applications.api.HandlebarsApplicat
 function registerSettings() {
   const settings = [
     ["maxDice", 6, 1, 99, "Максимум кубиков в пуле"],
+    ["maxAdvantage", 2, 0, 2, "Максимум преимуществ"],
+    ["maxHindrance", 2, 0, 2, "Максимум помех"],
     ["maxCharacteristic", 3, 1, 99, "Максимальный уровень характеристики"],
     ["maxInspiration", 6, 0, 99, "Максимальный запас вдохновения"],
     ["relationshipMin", -6, -99, 99, "Минимальное значение отношений"],
