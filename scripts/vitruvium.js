@@ -39,21 +39,28 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, speaker }) {
 }
 
 const trayState = {
-  dice: 3, advantage: 0, hindrance: 0
+  dice: 3, advantage: 0, hindrance: 0, rolling: false
 };
 
 function chatRoot(html) {
-  return html instanceof HTMLElement ? html : html?.[0] ?? html;
+  const root = html?.element ?? html?.[0] ?? html;
+  if (root instanceof HTMLElement && (root.matches("#chat") || root.querySelector("#chat-form, #chat-controls"))) return root;
+  return document.querySelector("#chat");
 }
 
 /** Persistent compact Dice Tray below the chat composer. */
 function renderChatTray(html) {
   const root = chatRoot(html) ?? document.querySelector("#chat");
   if (!root?.querySelector) return;
-  root.querySelector("#vitruvium-dice-tray")?.remove();
+  const existing = root.querySelector("#vitruvium-dice-tray");
+  if (existing) {
+    existing.querySelector("[data-tray-action='roll']").disabled = trayState.rolling;
+    existing.querySelectorAll("[data-tray-value]").forEach((value) => {
+      value.textContent = String(trayState[value.dataset.trayValue]);
+    });
+    return;
+  }
   const chatForm = root.querySelector("#chat-form");
-  const target = root.querySelector("#chat-controls") ?? chatForm?.parentElement ?? root;
-  if (!target) return;
   const tray = document.createElement("section");
   tray.id = "vitruvium-dice-tray";
   tray.className = "vitruvium-dice-tray";
@@ -63,52 +70,58 @@ function renderChatTray(html) {
     <div class="tray-counter">
       <span>Кубики</span>
       <button type="button" data-tray-action="change" data-key="dice" data-delta="-1" aria-label="Уменьшить количество кубиков">−</button>
-      <b>${trayState.dice}</b>
+      <b data-tray-value="dice">${trayState.dice}</b>
       <button type="button" data-tray-action="change" data-key="dice" data-delta="1" aria-label="Увеличить количество кубиков">+</button>
     </div>
     <div class="tray-counter">
       <span>Преимущество</span>
       <button type="button" data-tray-action="change" data-key="advantage" data-delta="-1" aria-label="Уменьшить преимущество">−</button>
-      <b>${trayState.advantage}</b>
+      <b data-tray-value="advantage">${trayState.advantage}</b>
       <button type="button" data-tray-action="change" data-key="advantage" data-delta="1" aria-label="Увеличить преимущество">+</button>
     </div>
     <div class="tray-counter">
       <span>Помеха</span>
       <button type="button" data-tray-action="change" data-key="hindrance" data-delta="-1" aria-label="Уменьшить помеху">−</button>
-      <b>${trayState.hindrance}</b>
+      <b data-tray-value="hindrance">${trayState.hindrance}</b>
       <button type="button" data-tray-action="change" data-key="hindrance" data-delta="1" aria-label="Увеличить помеху">+</button>
     </div>
-    <button type="button" class="tray-roll" data-tray-action="roll">Бросить</button>`;
-  target.append(tray);
-  tray.addEventListener("click", async (event) => {
-    const button = event.target instanceof Element ? event.target.closest("button") : null;
-    if (!button) return;
-    event.preventDefault();
-    if (button.dataset.trayAction === "change") {
-      const key = button.dataset.key;
-      const limit = key === "dice" ? maxDice : 2;
-      if (!["dice", "advantage", "hindrance"].includes(key)) return;
-      trayState[key] = clamp(trayState[key] + Number(button.dataset.delta), key === "dice" ? 1 : 0, limit);
-      renderChatTray(root);
-      return;
-    }
-    if (button.dataset.trayAction === "roll") {
-      button.disabled = true;
-      try {
-        await rollPool({
-          dice: trayState.dice,
-          advantage: trayState.advantage,
-          hindrance: trayState.hindrance,
-          speaker: ChatMessage.getSpeaker()
-        });
-      } catch (error) {
-        console.error("Vitruvium Dice Tray roll failed.", error);
-        ui.notifications.error("Не удалось выполнить бросок Vitruvium.");
-      } finally {
-        button.disabled = false;
-      }
-    }
-  });
+    <button type="button" class="tray-roll" data-tray-action="roll" ${trayState.rolling ? "disabled" : ""}>Бросить</button>`;
+  if (chatForm?.insertAdjacentElement) chatForm.insertAdjacentElement("afterend", tray);
+  else if (chatForm?.parentElement) chatForm.parentElement.append(tray);
+  else root.append(tray);
+}
+
+async function handleTrayClick(event) {
+  const button = event.target instanceof Element ? event.target.closest("[data-tray-action]") : null;
+  if (!button || !button.closest("#vitruvium-dice-tray") || button.disabled) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (button.dataset.trayAction === "change") {
+    const key = button.dataset.key;
+    if (!["dice", "advantage", "hindrance"].includes(key)) return;
+    const max = key === "dice" ? Math.max(1, Number(getSetting("maxDice")) || 6) : 2;
+    trayState[key] = clamp(trayState[key] + Number(button.dataset.delta), key === "dice" ? 1 : 0, max);
+    button.closest("#vitruvium-dice-tray").querySelector(`[data-tray-value="${key}"]`).textContent = String(trayState[key]);
+    return;
+  }
+  if (button.dataset.trayAction !== "roll" || trayState.rolling) return;
+  trayState.rolling = true;
+  button.disabled = true;
+  try {
+    await rollPool({
+      dice: trayState.dice,
+      advantage: trayState.advantage,
+      hindrance: trayState.hindrance,
+      speaker: ChatMessage.getSpeaker()
+    });
+  } catch (error) {
+    console.error("Vitruvium Dice Tray roll failed.", error);
+    ui.notifications.error("Не удалось выполнить бросок Vitruvium.");
+  } finally {
+    trayState.rolling = false;
+    const currentTray = button.closest("#vitruvium-dice-tray");
+    if (currentTray) currentTray.querySelector("[data-tray-action='roll']").disabled = false;
+  }
 }
 
 class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2) {
@@ -166,7 +179,10 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
           "save-relationship": VitruviumActorSheet.#saveRelationship, "remove-relationship": VitruviumActorSheet.#removeRelationship,
           "add-resource": VitruviumActorSheet.#addResource, "edit-resource": VitruviumActorSheet.#editResource,
           "save-resource": VitruviumActorSheet.#saveResource, "cancel-resource": VitruviumActorSheet.#cancelResource,
-          "delete-resource": VitruviumActorSheet.#deleteResource
+          "delete-resource": VitruviumActorSheet.#deleteResource, "adjust-resource": VitruviumActorSheet.#adjustResource,
+          "remove-relationship-image": VitruviumActorSheet.#removeRelationshipImage,
+          "remove-item-image": VitruviumActorSheet.#removeItemImage,
+          "remove-resource-image": VitruviumActorSheet.#removeResourceImage
         };
         try {
           return await handlers[action]?.call(this, event, button);
@@ -188,6 +204,26 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         } catch (error) {
           console.error("Vitruvium relationship image update failed.", error);
           ui.notifications.error("Не удалось сохранить изображение отношения.");
+        }
+      });
+    });
+    this.element.querySelectorAll("[data-item-image]").forEach((input) => {
+      input.addEventListener("change", async () => {
+        try {
+          await VitruviumActorSheet.#updateItemImage.call(this, input);
+        } catch (error) {
+          console.error("Vitruvium item image update failed.", error);
+          ui.notifications.error("Не удалось сохранить изображение.");
+        }
+      });
+    });
+    this.element.querySelectorAll("[data-resource-image]").forEach((input) => {
+      input.addEventListener("change", async () => {
+        try {
+          await VitruviumActorSheet.#updateResourceImage.call(this, input);
+        } catch (error) {
+          console.error("Vitruvium resource image update failed.", error);
+          ui.notifications.error("Не удалось сохранить изображение ресурса.");
         }
       });
     });
@@ -317,6 +353,15 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     return this.render();
   }
 
+  static async #removeRelationshipImage(event, target) {
+    const relationships = foundry.utils.deepClone(this.actor.system.relationships ?? []);
+    const relationship = relationships.find((entry) => entry.id === target.dataset.id);
+    if (!relationship) return;
+    relationship.portrait = "";
+    await this.actor.update({ "system.relationships": relationships });
+    return this.render();
+  }
+
   static async #updateRelationshipImage(input) {
     const file = input.files?.[0];
     if (!file) return;
@@ -336,6 +381,46 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
           reject(error);
         }
       };
+      try {
+        reader.readAsDataURL(file);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  static async #updateItemImage(input) {
+    const file = input.files?.[0];
+    const item = this.actor.items.get(input.dataset.itemImage);
+    if (!file || !item) return;
+    const image = await VitruviumActorSheet.#readImage(file);
+    await item.update({ img: image });
+    return this.render();
+  }
+
+  static async #removeItemImage(event, target) {
+    const item = this.actor.items.get(target.dataset.itemId);
+    if (!item) throw new Error(`Embedded item ${target.dataset.itemId} was not found.`);
+    await item.update({ img: "icons/svg/mystery-man.svg" });
+    return this.render();
+  }
+
+  static async #updateResourceImage(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+    const resources = foundry.utils.deepClone(this.actor.system.resources ?? []);
+    const resource = resources.find((entry, index) => (entry.id ?? `resource-${index}`) === input.dataset.resourceImage);
+    if (!resource) throw new Error(`Resource ${input.dataset.resourceImage} was not found.`);
+    resource.img = await VitruviumActorSheet.#readImage(file);
+    await this.actor.update({ "system.resources": resources });
+    return this.render();
+  }
+
+  static #readImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error ?? new Error("Could not read image."));
+      reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Image data is unavailable."));
       try {
         reader.readAsDataURL(file);
       } catch (error) {
@@ -366,12 +451,35 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     target.closest("article").querySelectorAll("[data-resource-field]").forEach((field) => {
       if (field.dataset.resourceId !== target.dataset.resourceId) return;
       if (field.dataset.resourceField === "name") resource.name = field.value.trim() || "Ресурс";
+      else if (field.dataset.resourceField === "description") resource.description = field.value;
       else resource[field.dataset.resourceField] = Math.max(0, Number(field.value) || 0);
     });
     resource.value = clamp(resource.value, 0, resource.max);
     await this.actor.update({ "system.resources": resources });
     this.editing.resources = false;
     this.editingItems = {};
+    return this.render();
+  }
+
+  static async #adjustResource(event, target) {
+    const resources = foundry.utils.deepClone(this.actor.system.resources ?? []);
+    const resource = resources.find((entry, index) => (entry.id ?? `resource-${index}`) === target.dataset.resourceId);
+    if (!resource) throw new Error(`Resource ${target.dataset.resourceId} was not found.`);
+    resource.value = clamp(Number(resource.value) + Number(target.dataset.delta), 0, Math.max(0, Number(resource.max) || 0));
+    const scrollTop = this.element?.querySelector?.(".character-sheet")?.scrollTop ?? 0;
+    await this.actor.update({ "system.resources": resources });
+    await this.render();
+    const sheetBody = this.element?.querySelector?.(".character-sheet");
+    if (sheetBody) sheetBody.scrollTop = scrollTop;
+    return this;
+  }
+
+  static async #removeResourceImage(event, target) {
+    const resources = foundry.utils.deepClone(this.actor.system.resources ?? []);
+    const resource = resources.find((entry, index) => (entry.id ?? `resource-${index}`) === target.dataset.resourceId);
+    if (!resource) throw new Error(`Resource ${target.dataset.resourceId} was not found.`);
+    resource.img = "";
+    await this.actor.update({ "system.resources": resources });
     return this.render();
   }
 
@@ -481,6 +589,7 @@ Hooks.on("preUpdateActor", (actor, change) => {
       const current = Number(resource.value);
       const max = Number.isFinite(maximum) ? Math.max(0, maximum) : 0;
       return {
+        ...resource,
         id: resource.id ?? foundry.utils.randomID(),
         name: String(resource.name ?? "Ресурс"),
         max,
@@ -525,10 +634,10 @@ Hooks.on("preCreateItem", (item, change, options, userId) => protectAspects(item
 Hooks.on("preUpdateItem", (item, change, options, userId) => protectAspects(item, userId));
 Hooks.on("preDeleteItem", (item, options, userId) => protectAspects(item, userId));
 
-Hooks.on("renderChatLog", (app, html) => renderChatTray(html));
-Hooks.on("renderChat", (app, html) => renderChatTray(html));
+Hooks.on("renderChatLog", (app, html) => renderChatTray(app?.element ?? html));
+Hooks.on("renderChat", (app, html) => renderChatTray(app?.element ?? html));
 Hooks.once("ready", () => {
+  document.addEventListener("click", handleTrayClick, true);
   game.vitruvium = { rollPool, renderChatTray };
-  if (ui.chat?.element) renderChatTray(ui.chat.element);
-  if (ui.chat?.isView) renderChatTray(ui.chat.element);
+  renderChatTray(ui.chat?.element ?? document.querySelector("#chat"));
 });
