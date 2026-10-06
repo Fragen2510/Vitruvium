@@ -1,0 +1,7 @@
+<section class="aspect-manager-body">
+  <header><h2>Аспекты мира</h2>{{#if canEdit}}<button type="button" data-aspect-action="create">Добавить аспект</button>{{/if}}</header>
+  <p class="manager-intro">Аспекты принадлежат игровому миру, а не персонажу.</p>
+  <div class="aspect-list scroll-list">
+    {{#each aspects}}<article><div><b>{{name}}</b><p>{{system.description}}</p><small>Уровни: {{system.levels}}</small><small>Статусы: {{system.statuses}}</small></div>{{#if ../canEdit}}<div class="card-actions"><button type="button" data-aspect-action="edit" data-item-id="{{id}}">Настроить</button><button type="button" data-aspect-action="delete" data-item-id="{{id}}">Удалить</button></div>{{/if}}</article>{{else}}<p class="empty">Аспекты пока не созданы.</p>{{/each}}
+  </div>
+</section>

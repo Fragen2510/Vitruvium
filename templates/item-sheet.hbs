@@ -1,0 +1,10 @@
+<section class="vitruvium-sheet item-sheet">
+  <header><img class="profile" src="{{item.img}}" data-edit="img"><input class="name" name="name" type="text" value="{{item.name}}"></header>
+  <label>Описание<textarea name="system.description">{{system.description}}</textarea></label>
+  {{#if hasValue}}<label>Уровень<input name="system.value" type="number" min="0" max="3" value="{{system.value}}"></label>{{/if}}
+  {{#if isAspect}}
+    <label>Уровни<textarea name="system.levels">{{system.levels}}</textarea></label>
+    <label>Статусы<textarea name="system.statuses">{{system.statuses}}</textarea></label>
+    <p class="hint">Аспект хранится как отдельный объект игрового мира. Изменять его могут только мастер и ассистенты.</p>
+  {{/if}}
+</section>

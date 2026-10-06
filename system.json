@@ -1,0 +1,23 @@
+{
+  "id": "vitruvium",
+  "title": "Vitruvium",
+  "description": "Игровая система Vitruvium для Foundry VTT.",
+  "version": "0.1.0",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13.351"
+  },
+  "authors": [{"name": "Vitruvium"}],
+  "url": "https://github.com/Fragen2510/Vitruvium",
+  "manifest": "https://raw.githubusercontent.com/Fragen2510/Vitruvium/refs/heads/main/system.json",
+  "download": "https://github.com/Fragen2510/Vitruvium/archive/refs/heads/main.zip",
+  "esmodules": ["scripts/vitruvium.js"],
+  "styles": ["styles/vitruvium.css"],
+  "documentTypes": {
+    "Actor": {"character": {}, "npc": {}},
+    "Item": {
+      "domain": {}, "ability": {}, "attribute": {}, "possession": {},
+      "status": {}, "aspect": {}
+    }
+  }
+}

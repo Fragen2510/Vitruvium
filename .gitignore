@@ -1,0 +1,8 @@
+# Foundry VTT local data
+worlds/
+packs/
+logs/
+
+# Development tooling
+node_modules/
+.DS_Store
