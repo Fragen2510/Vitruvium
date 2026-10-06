@@ -60,11 +60,12 @@
 .vitruvium .aspect-list { max-height:520px; }
 .vitruvium .aspect-list article { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; padding:10px; border:1px solid #354653; border-radius:9px; background:#232d38; }
 .vitruvium .aspect-list article p { margin:4px 0; color:#9aa8b5; }
-.vitruvium .vitruvium-dice-tray { display:grid; gap:8px; padding:11px; border:1px solid #354653; border-radius:11px; background:#151b21; color:#edf3f8; }
+.vitruvium .vitruvium-dice-tray { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px; border:1px solid #354653; border-radius:11px; background:#151b21; color:#edf3f8; }
 .vitruvium .tray-title { color:#f0a84a; font-weight:700; }
-.vitruvium .dice-buttons { display:grid; grid-template-columns:repeat(auto-fit,minmax(58px,1fr)); gap:5px; }
-.vitruvium .dice-buttons button { padding:6px; border-radius:6px; }
-.vitruvium .dice-buttons button.active { background:#f0a84a; color:#111; font-weight:700; }
+.vitruvium .dice-controls { display:flex; align-items:center; gap:6px; flex:1; min-width:130px; }
+.vitruvium .dice-controls button { min-width:30px; min-height:30px; padding:3px; border-radius:6px; }
+.vitruvium .dice-controls b { min-width:18px; text-align:center; }
+.vitruvium .tray-roll { padding:8px 12px; border-radius:7px; font-weight:700; background:#f0a84a; color:#111; border:0; }
 .vitruvium .tray-select, .vitruvium .tray-toggle { display:grid; gap:4px; font-size:.78rem; color:#aab7c4; }
 .vitruvium .tray-select select, .vitruvium .tray-toggle input { width:100%; }
 .vitruvium .tray-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:5px; }

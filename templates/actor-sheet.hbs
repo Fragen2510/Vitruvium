@@ -2,7 +2,7 @@
   <header class="character-header">
     <div class="character-name">{{actor.name}}</div>
     <section class="stat-strip">
-      {{#each characteristics as |key characteristic|}}
+      {{#each characteristics as |characteristic key|}}
         <div class="characteristic-card" title="{{characteristic.label}}">
           <span>{{characteristic.label}}</span>
           <div class="stepper">

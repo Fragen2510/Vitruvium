@@ -67,27 +67,19 @@ function renderChatTray(html) {
   tray.className = "vitruvium-dice-tray";
   tray.innerHTML = `
     <div class="tray-title">Бросок Vitruvium</div>
-    <div class="dice-buttons" aria-label="Количество кубиков">
-      ${Array.from({ length: Math.max(1, Number(getSetting("maxDice")) || 6) }, (_, index) => `<button type="button" data-tray-action="set-dice" data-dice="${index + 1}" class="${trayState.dice === index + 1 ? "active" : ""}">${index + 1}d6</button>`).join("")}
-    </div>
-    <div class="tray-difficulty">
-      <span>Сложность</span>
-      <input type="number" min="1" max="99" value="${trayState.difficulty}" data-tray-field="difficulty" aria-label="Сложность">
+    <div class="dice-controls">
+      <span>Кубики</span>
+      <button type="button" data-tray-action="change-dice" data-delta="-1" aria-label="Убрать кубик">−</button>
+      <b>${trayState.dice}</b>
+      <button type="button" data-tray-action="change-dice" data-delta="1" aria-label="Добавить кубик">+</button>
     </div>
     <button type="button" class="tray-roll" data-tray-action="roll">Бросить</button>`;
   target.append(tray);
   tray.addEventListener("click", async (event) => {
     const button = event.target.closest("button");
     if (!button) return;
-    if (button.dataset.trayAction === "change") {
-      const key = button.dataset.key;
-      const max = Number(button.dataset.max);
-      trayState[key] = clamp(trayState[key] + Number(button.dataset.delta), Number(button.dataset.min), max);
-      renderChatTray(root);
-      return;
-    }
-    if (button.dataset.trayAction === "set-dice") {
-      trayState.dice = Number(button.dataset.dice);
+    if (button.dataset.trayAction === "change-dice") {
+      trayState.dice = clamp(trayState.dice + Number(button.dataset.delta), 1, getSetting("maxDice"));
       renderChatTray(root);
       return;
     }
@@ -117,7 +109,7 @@ function trayCounter(label, key, value, min, max) {
 
 class VitruviumActorSheet extends foundry.applications.sheets.ActorSheetV2 {
   static DEFAULT_OPTIONS = {
-    classes: ["vitruvium", "sheet", "actor"], position: { width: 980, height: 820, resizable: true },
+    classes: ["vitruvium", "sheet", "actor"], position: { width: 980, height: 820 },
     form: { closeOnSubmit: false, submitOnChange: true }
   };
   static PARTS = { main: { template: "systems/vitruvium/templates/actor-sheet.hbs" } };
@@ -266,7 +258,7 @@ class VitruviumActorSheet extends foundry.applications.sheets.ActorSheetV2 {
 }
 
 class VitruviumItemSheet extends foundry.applications.sheets.ItemSheetV2 {
-  static DEFAULT_OPTIONS = { classes: ["vitruvium", "sheet", "item"], position: { width: 620, height: 560, resizable: true }, form: { closeOnSubmit: false, submitOnChange: true } };
+  static DEFAULT_OPTIONS = { classes: ["vitruvium", "sheet", "item"], position: { width: 620, height: 560 }, form: { closeOnSubmit: false, submitOnChange: true } };
   static PARTS = { main: { template: "systems/vitruvium/templates/item-sheet.hbs" } };
   get item() { return this.object ?? this.document; }
   get title() { return this.item.name || super.title; }
@@ -342,13 +334,6 @@ Hooks.once("init", () => {
   const SheetConfig = foundry.applications.apps.DocumentSheetConfig;
   SheetConfig.registerSheet(Actor, SYSTEM_ID, VitruviumActorSheet, { makeDefault: true });
   SheetConfig.registerSheet(Item, SYSTEM_ID, VitruviumItemSheet, { makeDefault: true });
-});
-
-Hooks.on("getSceneControlButtons", (controls) => {
-  controls.push({
-    name: "vitruvium", title: "Vitruvium", icon: "fa-solid fa-book-open", layer: "controls",
-    tools: [{ name: "world-aspects", title: "Аспекты мира", icon: "fa-solid fa-list", button: true, onChange: () => new VitruviumAspectManager().render(true) }]
-  });
 });
 
 Hooks.on("preCreateActor", (actor) => {
