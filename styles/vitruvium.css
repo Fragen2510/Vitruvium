@@ -386,6 +386,16 @@
 .vitruvium .horizontal-list.scroll-list > .possession-card.is-editing > .entity-edit { grid-column:1 / -1; min-width:0; }
 .vitruvium .horizontal-list.scroll-list > .possession-card.is-editing > .entity-image { grid-column:1; grid-row:1; width:68px; height:68px; }
 .vitruvium .horizontal-list.scroll-list > .possession-card.is-editing .inline-edit { width:100%; }
+.vitruvium .horizontal-list.scroll-list {
+  display:flex; flex-flow:row nowrap; align-items:stretch; width:100%; max-height:none;
+  overflow-x:auto; overflow-y:hidden; padding:2px 2px 12px; overscroll-behavior-inline:contain;
+}
+.vitruvium .horizontal-list.scroll-list > .possession-card { flex:0 0 220px; width:220px; min-width:220px; }
+.vitruvium .horizontal-list.scroll-list > .possession-card.has-image { grid-template-columns:68px minmax(0,1fr); }
+.vitruvium .horizontal-list.scroll-list > .possession-card.is-editing { flex-basis:min(380px, calc(100vw - 48px)); width:min(380px, calc(100vw - 48px)); min-width:min(380px, calc(100vw - 48px)); }
+.vitruvium .horizontal-list.scroll-list > .possession-card.is-editing:not(.has-image) { grid-template-columns:minmax(0,1fr); }
+.vitruvium .horizontal-list.scroll-list > .possession-card.is-editing .image-actions,
+.vitruvium .horizontal-list.scroll-list > .possession-card.is-editing .form-actions { flex-wrap:wrap; }
 .vitruvium .relationships-panel .scroll-list > .relationship { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; }
 .vitruvium .relationships-panel .scroll-list > .relationship.has-image { grid-template-columns:72px minmax(0,1fr) auto; }
 .vitruvium .relationships-panel .relationship-content,
@@ -405,9 +415,19 @@
 .vitruvium .resources-panel .resource-card.has-image > .resource-edit { grid-column:2 / -1; }
 .vitruvium .resources-panel .resource-card > .resource-image { grid-column:1; grid-row:1; width:50px; height:50px; }
 .vitruvium-dice-tray .tray-counter { grid-template-columns:30px minmax(20px,auto) 30px; justify-content:start; }
+.vitruvium-dice-tray .tray-counter-heading,
+.vitruvium-dice-tray .tray-counter-note { grid-column:1 / -1; }
+.vitruvium-dice-tray .tray-counter-heading { display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; }
+.vitruvium-dice-tray .tray-counter-heading > span { color:#edf3f8; font-size:.83rem; }
+.vitruvium-dice-tray .tray-counter-heading > small { color:#b9c7d3; font-size:.74rem; white-space:nowrap; }
+.vitruvium-dice-tray .tray-counter-heading > small b { display:inline; min-width:0; color:#ffc16b; }
+.vitruvium-dice-tray .tray-counter-note { color:#9fb0bf; font-size:.73rem; }
 .vitruvium-dice-tray .tray-counter button { width:30px; min-width:30px; max-width:30px; height:30px; min-height:30px; padding:0; }
 .vitruvium-dice-tray .tray-counter b { min-width:20px; }
 #chat .message-content .vitruvium-chat-card .roll-actions { display:grid; grid-template-columns:minmax(0,1fr); min-width:0; }
+#chat .message-content .vitruvium-chat-card .roll-action-group { display:grid; grid-template-columns:minmax(0,1fr); gap:4px; min-width:0; }
+#chat .message-content .vitruvium-chat-card .roll-action-group > small,
+#chat .message-content .vitruvium-chat-card .domain-success-action > small { color:#b9c7d3; font-size:.76rem; line-height:1.3; }
 #chat .message-content .vitruvium-chat-card .roll-actions > button,
 #chat .message-content .vitruvium-chat-card .domain-success-action > button { width:100%; min-width:0; white-space:normal; overflow-wrap:anywhere; line-height:1.25; }
 #chat .message-content .vitruvium-chat-card .domain-success-action { grid-template-columns:minmax(0,1fr); width:100%; min-width:0; box-sizing:border-box; }

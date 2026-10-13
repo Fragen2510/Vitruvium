@@ -38,17 +38,17 @@ function renderRollCard(data) {
   const successes = chosen.successes + bonusSuccesses;
   const rolls = data.pools.map((pool, index) => `<li${index === data.chosenIndex ? " class=\"chosen\"" : ""}><span>Бросок ${index + 1}</span><b>${pool.successes} ${successLabel(pool.successes)}</b></li>`).join("");
   const bonusDiceSuccesses = data.bonusDice.reduce((total, result) => total + result, 0);
-  const bonusDice = data.bonusDice.length ? `<li class="bonus-roll"><span>Доп. d6 вдохновения ×${data.bonusDice.length}</span><b>+${bonusDiceSuccesses} ${successLabel(bonusDiceSuccesses)}</b></li>` : "";
-  const domainBonuses = data.domainSuccesses.map((result) => `<li class="bonus-roll"><span>${escapeHtml(result.name)} · уровень ${result.level}</span><b>+${result.successes} ${successLabel(result.successes)}</b></li>`).join("");
+  const bonusDice = data.bonusDice.length ? `<li class="bonus-roll"><span>Дополнительные кубики: ${data.bonusDice.length}d6</span><b>+${bonusDiceSuccesses} ${successLabel(bonusDiceSuccesses)}</b></li>` : "";
+  const domainBonuses = data.domainSuccesses.map((result) => `<li class="bonus-roll"><span>${escapeHtml(result.name)} (уровень ${result.level})</span><b>+${result.successes} ${successLabel(result.successes)}</b></li>`).join("");
   const totalInspirationSpent = data.inspirationSpent + data.bonusDice.length + data.domainSuccesses.length;
   const inspiration = totalInspirationSpent ? `<span><small>Вдохновение</small><b>−${totalInspirationSpent}</b></span>` : "";
   const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
   const canAddDie = data.actorUuid && data.inspirationRemaining > 0 && data.poolDice + data.bonusDice.length < maxDice;
-  const domainOptions = data.domains.map((domain) => `<option value="${escapeHtml(domain.id)}">${escapeHtml(domain.name)} · уровень ${domain.level} (+${domain.level})</option>`).join("");
-  const dieAction = canAddDie ? `<button type="button" data-vitruvium-roll-action="add-die">Добавить d6 · −1 вдохновение</button>` : "";
-  const domainAction = data.actorUuid && data.inspirationRemaining > 0 && domainOptions ? `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи · −1 вдохновение</button></label>` : "";
+  const domainOptions = data.domains.map((domain) => `<option value="${escapeHtml(domain.id)}">${escapeHtml(domain.name)} (уровень ${domain.level}, +${domain.level})</option>`).join("");
+  const dieAction = canAddDie ? `<div class="roll-action-group"><button type="button" data-vitruvium-roll-action="add-die">Добавить кубик</button><small>+1d6 за 1 вдохновение</small></div>` : "";
+  const domainAction = data.actorUuid && data.inspirationRemaining > 0 && domainOptions ? `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи</button><small>1 вдохновение добавляет успехи по уровню домена</small></label>` : "";
   const actions = dieAction || domainAction ? `<div class="roll-actions">${dieAction}${domainAction}</div>` : "";
-  return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary"><span><small>Пул</small><b>${data.baseDice} + ${data.inspirationSpent} = ${data.poolDice} d6</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
+  return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary"><span><small>Пул</small><b>${data.baseDice}+${data.inspirationSpent}=${data.poolDice}d6</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
 }
 
 /** Roll a special d6 pool. Each die yields 0, 1 or 2 successes. */
@@ -167,7 +167,7 @@ function updateTrayDisplay(tray) {
     value.textContent = String(trayState[value.dataset.trayValue]);
   });
   const availableValue = tray.querySelector("[data-tray-available]");
-  if (availableValue) availableValue.textContent = `${actorInspiration} доступно`;
+  if (availableValue) availableValue.textContent = String(actorInspiration);
   tray.querySelectorAll("[data-tray-action='change']").forEach((button) => {
     const key = button.dataset.key;
     const delta = Number(button.dataset.delta);
@@ -207,6 +207,13 @@ function renderChatTray(html) {
       <button type="button" data-tray-action="change" data-key="dice" data-delta="1" aria-label="Увеличить количество кубиков">+</button>
     </div>
     <div class="tray-counter">
+      <div class="tray-counter-heading"><span>Вдохновение</span><small>Доступно: <b data-tray-available>0</b></small></div>
+      <small class="tray-counter-note">1 очко = +1d6</small>
+      <button type="button" data-tray-action="change" data-key="inspiration" data-delta="-1" aria-label="Уменьшить трату вдохновения">−</button>
+      <b data-tray-value="inspiration">${trayState.inspiration}</b>
+      <button type="button" data-tray-action="change" data-key="inspiration" data-delta="1" aria-label="Добавить вдохновение к броску">+</button>
+    </div>
+    <div class="tray-counter">
       <span>Преимущество</span>
       <button type="button" data-tray-action="change" data-key="advantage" data-delta="-1" aria-label="Уменьшить преимущество">−</button>
       <b data-tray-value="advantage">${trayState.advantage}</b>
@@ -217,12 +224,6 @@ function renderChatTray(html) {
       <button type="button" data-tray-action="change" data-key="hindrance" data-delta="-1" aria-label="Уменьшить помеху">−</button>
       <b data-tray-value="hindrance">${trayState.hindrance}</b>
       <button type="button" data-tray-action="change" data-key="hindrance" data-delta="1" aria-label="Увеличить помеху">+</button>
-    </div>
-    <div class="tray-counter">
-      <span>Вдохновение · +1 d6 за очко <small data-tray-available></small></span>
-      <button type="button" data-tray-action="change" data-key="inspiration" data-delta="-1" aria-label="Уменьшить трату вдохновения">−</button>
-      <b data-tray-value="inspiration">${trayState.inspiration}</b>
-      <button type="button" data-tray-action="change" data-key="inspiration" data-delta="1" aria-label="Добавить вдохновение к броску">+</button>
     </div>
     <button type="button" class="tray-roll" data-tray-action="roll" ${trayState.rolling ? "disabled" : ""}>Бросить</button>`;
   updateTrayDisplay(tray);
@@ -840,6 +841,10 @@ Hooks.on("preDeleteItem", (item, options, userId) => protectAspects(item, userId
 
 Hooks.on("renderChatLog", (app, html) => renderChatTray(app?.element ?? html));
 Hooks.on("renderChat", (app, html) => renderChatTray(app?.element ?? html));
+Hooks.on("updateActor", (actor) => {
+  const tray = document.querySelector("#vitruvium-dice-tray");
+  if (tray && getSpeakerActor()?.uuid === actor.uuid) updateTrayDisplay(tray);
+});
 Hooks.once("ready", () => {
   document.addEventListener("click", handleTrayClick, true);
   document.addEventListener("click", handleRollAction, true);
