@@ -497,3 +497,15 @@
   .vitruvium .character-header { grid-template-columns:minmax(0,1fr); align-items:start; }
   .vitruvium .character-header > .character-name { align-self:start; height:fit-content; min-height:0; }
 }
+.vitruvium .character-sheet { container-type:inline-size; }
+@container (max-width:760px) {
+  .vitruvium .character-header { grid-template-columns:minmax(0,1fr); align-items:start; }
+  .vitruvium .character-header > .character-name { align-self:start; height:fit-content; min-height:0; }
+  .vitruvium .character-layout { grid-template-columns:minmax(0,1fr); }
+  .vitruvium .left-column, .vitruvium .main-column { max-height:none; }
+  .vitruvium .stat-strip { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@container (max-width:460px) {
+  .vitruvium .stat-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .vitruvium .domain-grid.scroll-list, .vitruvium .card-grid.scroll-list { grid-template-columns:1fr; }
+}
