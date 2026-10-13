@@ -12,19 +12,30 @@ const CHARACTERISTICS = {
 const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
 const getSetting = (key) => game.settings.get(SYSTEM_ID, key);
 const dieSuccess = (face) => (face === 6 ? 2 : face >= 4 ? 1 : 0);
+const successLabel = (count) => {
+  const lastTwo = count % 100;
+  if (lastTwo >= 11 && lastTwo <= 14) return "успехов";
+  const last = count % 10;
+  if (last === 1) return "успех";
+  if (last >= 2 && last <= 4) return "успеха";
+  return "успехов";
+};
 
 /** Roll a special d6 pool. Each die yields 0, 1 or 2 successes. */
-async function rollPool({ dice, advantage = 0, hindrance = 0, speaker }) {
+async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, speaker, actor }) {
   const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
   const count = clamp(dice, 1, maxDice);
+  const availableInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
+  const spentInspiration = Math.min(clamp(inspiration, 0, availableInspiration), maxDice - count);
+  const poolSize = count + spentInspiration;
   const net = clamp(advantage, 0, 2) - clamp(hindrance, 0, 2);
   const attempts = Math.abs(net) + 1;
   const pools = [];
 
   for (let i = 0; i < attempts; i += 1) {
-    const roll = await (new Roll(`${count}d6`)).evaluate();
-    const faces = roll.dice[0].results.map((result) => dieSuccess(result.result));
-    pools.push({ faces, successes: faces.reduce((total, face) => total + face, 0) });
+    const roll = await (new Roll(`${poolSize}d6`)).evaluate();
+    const faces = roll.dice[0].results.map((result) => result.result);
+    pools.push({ faces, successes: faces.reduce((total, face) => total + dieSuccess(face), 0) });
   }
 
   const chosen = pools.reduce((selected, pool) => {
@@ -32,15 +43,55 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, speaker }) {
     if (net < 0) return pool.successes < selected.successes ? pool : selected;
     return selected;
   });
-  const rolls = pools.map((pool, index) => `<li${pool === chosen ? " class=\"chosen\"" : ""}>Бросок ${index + 1}: ${pool.faces.join(", ")} — <b>${pool.successes}</b> успех(а/ов)</li>`).join("");
+  const rolls = pools.map((pool, index) => `<li${pool === chosen ? " class=\"chosen\"" : ""}><span>Бросок ${index + 1}</span><span class="roll-faces">${pool.faces.map((face) => `${face} <small>(${dieSuccess(face)})</small>`).join(" · ")}</span><b>${pool.successes} ${successLabel(pool.successes)}</b></li>`).join("");
   const mode = net > 0 ? `Преимущество ×${net}` : net < 0 ? `Помеха ×${Math.abs(net)}` : "Обычный бросок";
-  const content = `<section class="vitruvium-chat-card"><h3>Бросок Vitruvium</h3><p>${mode}. Кубиков: <b>${count}</b>.</p><ul>${rolls}</ul><p>Итог: <b>${chosen.successes}</b> успех(а/ов).</p></section>`;
-  await ChatMessage.create({ content, speaker });
+  const inspirationNote = spentInspiration ? `<span><small>Вдохновение</small><b>−${spentInspiration}</b></span>` : "";
+  const content = `<section class="vitruvium-chat-card"><header><h3>Бросок Vitruvium</h3><span class="roll-mode">${mode}</span></header><div class="roll-summary"><span><small>Пул</small><b>${count} + ${spentInspiration} = ${poolSize} d6</b></span>${inspirationNote}</div><ol>${rolls}</ol><footer><span>Итог</span><strong>${chosen.successes} ${successLabel(chosen.successes)}</strong></footer><small class="roll-legend">На каждом кубике: 1–3 = 0, 4–5 = 1, 6 = 2 успеха.</small></section>`;
+  if (spentInspiration && actor) await actor.update({ "system.inspiration": availableInspiration - spentInspiration });
+  try {
+    await ChatMessage.create({ content, speaker });
+  } catch (error) {
+    if (spentInspiration && actor) {
+      try {
+        await actor.update({ "system.inspiration": availableInspiration });
+      } catch (restoreError) {
+        console.error("Vitruvium could not restore inspiration after a failed roll message.", restoreError);
+      }
+    }
+    throw error;
+  }
 }
 
 const trayState = {
-  dice: 3, advantage: 0, hindrance: 0, rolling: false
+  dice: 3, advantage: 0, hindrance: 0, inspiration: 0, rolling: false
 };
+
+function getSpeakerActor(speaker = ChatMessage.getSpeaker()) {
+  const tokenActor = speaker?.token ? canvas.tokens?.get(speaker.token)?.actor : null;
+  return tokenActor ?? (speaker?.actor ? game.actors.get(speaker.actor) : null) ?? game.user?.character ?? null;
+}
+
+function updateTrayDisplay(tray) {
+  const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
+  const actor = getSpeakerActor();
+  const actorInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
+  trayState.dice = clamp(trayState.dice, 1, maxDice);
+  trayState.inspiration = clamp(trayState.inspiration, 0, Math.min(actorInspiration, maxDice - trayState.dice));
+  tray.querySelectorAll("[data-tray-value]").forEach((value) => {
+    value.textContent = String(trayState[value.dataset.trayValue]);
+  });
+  const availableValue = tray.querySelector("[data-tray-available]");
+  if (availableValue) availableValue.textContent = `${actorInspiration} доступно`;
+  tray.querySelectorAll("[data-tray-action='change']").forEach((button) => {
+    const key = button.dataset.key;
+    const delta = Number(button.dataset.delta);
+    const limit = key === "dice" ? maxDice : key === "inspiration" ? Math.min(actorInspiration, maxDice - trayState.dice) : 2;
+    const minimum = key === "dice" ? 1 : 0;
+    button.disabled = delta < 0 ? trayState[key] <= minimum : trayState[key] >= limit;
+  });
+  const rollButton = tray.querySelector("[data-tray-action='roll']");
+  if (rollButton) rollButton.disabled = trayState.rolling;
+}
 
 function chatRoot(html) {
   const root = html?.element ?? html?.[0] ?? html;
@@ -54,18 +105,14 @@ function renderChatTray(html) {
   if (!root?.querySelector) return;
   const existing = root.querySelector("#vitruvium-dice-tray");
   if (existing) {
-    existing.querySelector("[data-tray-action='roll']").disabled = trayState.rolling;
-    existing.querySelectorAll("[data-tray-value]").forEach((value) => {
-      value.textContent = String(trayState[value.dataset.trayValue]);
-    });
+    updateTrayDisplay(existing);
     return;
   }
   const chatForm = root.querySelector("#chat-form");
   const tray = document.createElement("section");
   tray.id = "vitruvium-dice-tray";
   tray.className = "vitruvium-dice-tray";
-  const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
-  trayState.dice = clamp(trayState.dice, 1, maxDice);
+  updateTrayDisplay(tray);
   tray.innerHTML = `
     <div class="tray-counter">
       <span>Кубики</span>
@@ -85,7 +132,14 @@ function renderChatTray(html) {
       <b data-tray-value="hindrance">${trayState.hindrance}</b>
       <button type="button" data-tray-action="change" data-key="hindrance" data-delta="1" aria-label="Увеличить помеху">+</button>
     </div>
+    <div class="tray-counter">
+      <span>Вдохновение · +1 d6 за очко <small data-tray-available></small></span>
+      <button type="button" data-tray-action="change" data-key="inspiration" data-delta="-1" aria-label="Уменьшить трату вдохновения">−</button>
+      <b data-tray-value="inspiration">${trayState.inspiration}</b>
+      <button type="button" data-tray-action="change" data-key="inspiration" data-delta="1" aria-label="Добавить вдохновение к броску">+</button>
+    </div>
     <button type="button" class="tray-roll" data-tray-action="roll" ${trayState.rolling ? "disabled" : ""}>Бросить</button>`;
+  updateTrayDisplay(tray);
   if (chatForm?.insertAdjacentElement) chatForm.insertAdjacentElement("afterend", tray);
   else if (chatForm?.parentElement) chatForm.parentElement.append(tray);
   else root.append(tray);
@@ -98,21 +152,27 @@ async function handleTrayClick(event) {
   event.stopPropagation();
   if (button.dataset.trayAction === "change") {
     const key = button.dataset.key;
-    if (!["dice", "advantage", "hindrance"].includes(key)) return;
-    const max = key === "dice" ? Math.max(1, Number(getSetting("maxDice")) || 6) : 2;
-    trayState[key] = clamp(trayState[key] + Number(button.dataset.delta), key === "dice" ? 1 : 0, max);
-    button.closest("#vitruvium-dice-tray").querySelector(`[data-tray-value="${key}"]`).textContent = String(trayState[key]);
+    if (!["dice", "advantage", "hindrance", "inspiration"].includes(key)) return;
+    const tray = button.closest("#vitruvium-dice-tray");
+    const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
+    const actor = getSpeakerActor();
+    const limit = key === "dice" ? maxDice : key === "inspiration" ? Math.min(Number(actor?.system?.inspiration) || 0, maxDice - trayState.dice) : 2;
+    trayState[key] = clamp(trayState[key] + Number(button.dataset.delta), key === "dice" ? 1 : 0, limit);
+    updateTrayDisplay(tray);
     return;
   }
   if (button.dataset.trayAction !== "roll" || trayState.rolling) return;
   trayState.rolling = true;
   button.disabled = true;
   try {
+    const speaker = ChatMessage.getSpeaker();
     await rollPool({
       dice: trayState.dice,
       advantage: trayState.advantage,
       hindrance: trayState.hindrance,
-      speaker: ChatMessage.getSpeaker()
+      inspiration: trayState.inspiration,
+      speaker,
+      actor: getSpeakerActor(speaker)
     });
   } catch (error) {
     console.error("Vitruvium Dice Tray roll failed.", error);
@@ -120,7 +180,7 @@ async function handleTrayClick(event) {
   } finally {
     trayState.rolling = false;
     const currentTray = button.closest("#vitruvium-dice-tray");
-    if (currentTray) currentTray.querySelector("[data-tray-action='roll']").disabled = false;
+    if (currentTray) updateTrayDisplay(currentTray);
   }
 }
 
@@ -235,7 +295,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
   }
 
   static async #editName() {
-    this.editingName = true;
+    this.editingName = !this.editingName;
     return this.render();
   }
 

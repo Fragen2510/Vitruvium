@@ -1,13 +1,15 @@
 <section class="vitruvium-sheet character-sheet">
   <header class="character-header">
     <div class="character-name">
+      <header class="character-name-header">
+        <h1>{{actor.name}}</h1>
+        <button type="button" class="panel-action" data-vitruvium-action="edit-name" aria-label="Изменить имя персонажа">⋯</button>
+      </header>
       {{#if editingName}}
         <div class="character-name-editor">
           <input class="inline-edit character-name-input" type="text" value="{{actor.name}}" aria-label="Имя персонажа" required>
           <div class="form-actions"><button type="button" data-vitruvium-action="save-name">Сохранить</button><button type="button" data-vitruvium-action="cancel-name">Отмена</button></div>
         </div>
-      {{else}}
-        <span>{{actor.name}}</span><button type="button" class="name-edit-action" data-vitruvium-action="edit-name">Изменить имя</button>
       {{/if}}
     </div>
     <section class="stat-panel">
@@ -117,6 +119,7 @@
                 {{#each abilities}}
                   <div class="ability-item">
                     {{#if (lookup ../../editingItems id)}}
+                      <img class="ability-image" src="{{#if img}}{{img}}{{else}}icons/svg/mystery-man.svg{{/if}}" alt="">
                       <div class="ability-edit entity-edit">
                         <input class="inline-edit" data-item-id="{{id}}" data-item-field="name" value="{{name}}" aria-label="Название способности">
                         <textarea class="inline-edit" data-item-id="{{id}}" data-item-field="system.description" aria-label="Описание способности">{{system.description}}</textarea>

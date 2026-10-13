@@ -248,3 +248,92 @@
 .vitruvium.item .vitruvium-sheet > header .profile { flex:0 0 64px; }
 .vitruvium.item .vitruvium-sheet > header .name { flex:1 1 220px; min-width:0; padding:8px 10px; }
 .vitruvium.item .vitruvium-sheet > label { display:grid; gap:6px; color:#b9c4cf; }
+
+.vitruvium-dice-tray {
+  display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:stretch;
+  gap:8px; width:100%; max-width:100%; min-width:0; overflow:visible;
+  padding:8px; white-space:normal;
+}
+.vitruvium-dice-tray .tray-counter {
+  display:grid; grid-template-columns:minmax(0, 1fr) repeat(3, auto); align-items:center;
+  min-width:0; gap:5px; padding:7px; border:1px solid #354653; border-radius:7px; background:#202832;
+}
+.vitruvium-dice-tray .tray-counter span { grid-column:1 / -1; color:#c7d1db; font-size:.8rem; }
+.vitruvium-dice-tray .tray-counter b { min-width:20px; text-align:center; }
+.vitruvium-dice-tray button { min-width:27px; min-height:27px; }
+.vitruvium-dice-tray button:disabled { opacity:.45; cursor:not-allowed; }
+.vitruvium-dice-tray .tray-roll { grid-column:1 / -1; width:100%; margin:0; }
+
+#chat .message-content .vitruvium-chat-card {
+  display:grid; gap:10px; padding:14px; border:1px solid #445464; border-left:4px solid #f0a84a;
+  border-radius:8px; background:#19232d; color:#edf3f7; font:inherit;
+}
+#chat .message-content .vitruvium-chat-card h3,
+#chat .message-content .vitruvium-chat-card p,
+#chat .message-content .vitruvium-chat-card li,
+#chat .message-content .vitruvium-chat-card span,
+#chat .message-content .vitruvium-chat-card small,
+#chat .message-content .vitruvium-chat-card footer { color:#edf3f7; }
+#chat .message-content .vitruvium-chat-card header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:5px 12px; }
+#chat .message-content .vitruvium-chat-card h3 { margin:0; color:#ffc16b; font-size:1.1rem; }
+#chat .message-content .vitruvium-chat-card .roll-mode { color:#c5d2de; font-size:.9rem; }
+#chat .message-content .vitruvium-chat-card .roll-summary { display:flex; flex-wrap:wrap; gap:8px; }
+#chat .message-content .vitruvium-chat-card .roll-summary > span { display:grid; gap:2px; min-width:92px; padding:7px 9px; border-radius:6px; background:#253340; }
+#chat .message-content .vitruvium-chat-card .roll-summary small,
+#chat .message-content .vitruvium-chat-card .roll-legend { color:#b9c7d3; }
+#chat .message-content .vitruvium-chat-card ol { display:grid; gap:5px; margin:0; padding:0; list-style:none; }
+#chat .message-content .vitruvium-chat-card ol li { display:grid; grid-template-columns:minmax(70px,auto) minmax(0,1fr) auto; align-items:center; gap:8px; padding:7px 9px; border-radius:6px; background:#222e39; }
+#chat .message-content .vitruvium-chat-card ol li.chosen { background:#20372f; box-shadow:inset 3px 0 #79d6a0; }
+#chat .message-content .vitruvium-chat-card .roll-faces { color:#cbd7e0; font-variant-numeric:tabular-nums; }
+#chat .message-content .vitruvium-chat-card .roll-faces small { color:#9eacb8; }
+#chat .message-content .vitruvium-chat-card ol li b { color:#8fe0ae; white-space:nowrap; }
+#chat .message-content .vitruvium-chat-card footer { display:flex; align-items:center; justify-content:space-between; padding-top:8px; border-top:1px solid #3b4b59; }
+#chat .message-content .vitruvium-chat-card footer strong { color:#ffc16b; font-size:1.15rem; }
+#chat .message-content .vitruvium-chat-card .roll-legend { font-size:.78rem; }
+
+.vitruvium .character-name { display:grid; align-content:start; gap:9px; min-width:0; padding:12px; border:1px solid #344455; border-radius:10px; background:#181e26; }
+.vitruvium .character-name-header { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
+.vitruvium .character-name-header h1 { min-width:0; margin:0; overflow-wrap:anywhere; font-size:1.2rem; line-height:1.25; }
+.vitruvium .character-name-editor { min-width:0; }
+.vitruvium .character-name-input { width:100%; }
+.vitruvium .image-button {
+  position:relative; display:inline-flex; align-items:center; justify-content:center; min-height:30px;
+  padding:5px 9px; border:1px solid #8fa3b5; border-radius:6px; background:#dce6ef;
+  color:#101820; font:inherit; font-size:.8rem; line-height:1.2; cursor:pointer; transition:background-color .15s ease, border-color .15s ease;
+}
+.vitruvium .image-button:hover { border-color:#f0a84a; background:#f0a84a; color:#111; }
+.vitruvium .image-button input { position:absolute; width:1px; height:1px; opacity:0; }
+.vitruvium .image-button:focus-within { outline:2px solid #f0a84a; outline-offset:2px; }
+.vitruvium .domain-card { grid-template-columns:78px minmax(0,1fr); }
+.vitruvium .entity-image { width:72px; height:72px; }
+.vitruvium .ability-item { grid-template-columns:54px minmax(0,1fr); }
+.vitruvium .ability-image { width:52px; height:52px; }
+.vitruvium .relationship { grid-template-columns:72px minmax(0,1fr) auto; }
+.vitruvium .relationship .relationship-portrait { width:68px; height:68px; }
+.vitruvium .possession-card { grid-template-columns:68px minmax(0,1fr); }
+.vitruvium .possession-card > .entity-image { width:64px; height:64px; }
+.vitruvium .resources-panel .resource-card { grid-template-columns:52px minmax(0,1fr) auto; }
+.vitruvium .resource-image { width:50px; height:50px; }
+.vitruvium details.description-details { min-width:0; color:#b9c7d3; font-size:.84rem; }
+.vitruvium details.description-details > summary { display:flex; align-items:center; gap:6px; width:fit-content; color:#dce6ef; cursor:pointer; list-style:none; }
+.vitruvium details.description-details > summary::-webkit-details-marker { display:none; }
+.vitruvium details.description-details > summary::before {
+  display:inline-grid; width:20px; height:20px; place-items:center; border:1px solid #526575;
+  border-radius:5px; background:#263441; color:#ffc16b; content:"+"; font-weight:700; line-height:1;
+}
+.vitruvium details.description-details[open] > summary::before { content:"−"; }
+.vitruvium details.description-details > p { margin:6px 0 0 26px; white-space:pre-wrap; overflow-wrap:anywhere; }
+@media (max-width:760px) {
+  .vitruvium .domain-card { grid-template-columns:62px minmax(0,1fr); }
+  .vitruvium .entity-image { width:58px; height:58px; }
+  .vitruvium .ability-item { grid-template-columns:48px minmax(0,1fr); }
+  .vitruvium .ability-image { width:46px; height:46px; }
+  .vitruvium .relationship { grid-template-columns:58px minmax(0,1fr); }
+  .vitruvium .relationship .relationship-portrait { width:54px; height:54px; }
+  .vitruvium .possession-card { grid-template-columns:56px minmax(0,1fr); }
+  .vitruvium .possession-card > .entity-image { width:52px; height:52px; }
+}
+@media (max-width:460px) {
+  #chat .message-content .vitruvium-chat-card ol li { grid-template-columns:minmax(0,1fr) auto; }
+  #chat .message-content .vitruvium-chat-card .roll-faces { grid-column:1 / -1; grid-row:2; }
+}
