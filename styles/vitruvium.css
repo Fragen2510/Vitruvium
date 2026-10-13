@@ -489,7 +489,7 @@
   #chat .message-content .vitruvium-chat-card ol li { grid-template-columns:minmax(0,1fr) auto; }
   #chat .message-content .vitruvium-chat-card .roll-faces { grid-column:1 / -1; grid-row:2; }
 }
-.vitruvium .character-name { min-height:58px; gap:6px; padding:9px 42px 9px 10px; }
+.vitruvium .character-name { align-self:start; height:fit-content; min-height:0; gap:6px; padding:9px 42px 9px 10px; }
 .vitruvium .character-name-header .panel-action { top:8px; right:8px; }
 .vitruvium .character-name-header h1 { font-size:1rem; line-height:1.2; }
 .vitruvium .character-name-editor { gap:6px; }

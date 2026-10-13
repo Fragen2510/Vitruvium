@@ -116,7 +116,14 @@ async function handleRollAction(event) {
     const message = messageId ? game.messages.get(messageId) : null;
     const data = foundry.utils.deepClone(message?.flags?.[SYSTEM_ID]?.roll);
     if (!message || !data || !message.canUserModify(game.user, "update")) return;
-    const actor = (data.actorUuid ? await fromUuid(data.actorUuid) : null) ?? getSpeakerActor(message.speaker);
+    const actorFromRoll = data.actorUuid ? await fromUuid(data.actorUuid) : null;
+    const speakerActor = getSpeakerActor(message.speaker);
+    const sameActor = !actorFromRoll || !speakerActor
+      || actorFromRoll.uuid === speakerActor.uuid || actorFromRoll.id === speakerActor.id;
+    const speakerInspiration = Number(speakerActor?.system?.inspiration) || 0;
+    const actor = sameActor && speakerActor?.isOwner && speakerInspiration > 0
+      ? speakerActor
+      : actorFromRoll ?? speakerActor;
     const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
     const availableInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
     if (!actor?.isOwner || !availableInspiration) return;
