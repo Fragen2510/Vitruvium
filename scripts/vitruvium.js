@@ -126,12 +126,13 @@ async function handleTrayClick(event) {
 
 class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2) {
   static DEFAULT_OPTIONS = {
-    classes: ["vitruvium", "sheet", "actor"], position: { width: 980, height: 820 }, window: { resizable: true },
+    classes: ["vitruvium", "sheet", "actor"], position: { width: 980, height: 820 },
     form: { closeOnSubmit: false, submitOnChange: true }
   };
   static PARTS = { main: { template: "systems/vitruvium/templates/actor-sheet.hbs" } };
   constructor(options) {
     super(options);
+    this.editingName = false;
     this.editing = { characteristics: false, domains: false, attributes: false, possessions: false, statuses: false, relationships: false, resources: false };
     this.editingItems = {};
   }
@@ -144,6 +145,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     const resources = (this.actor.system.resources ?? []).map((resource, index) => ({ ...resource, id: resource.id ?? `resource-${index}` }));
     return {
       ...context, actor: this.actor, system: this.actor.system, characteristics: CHARACTERISTICS,
+      editingName: this.editingName,
       relationships, maxCharacteristic: getSetting("maxCharacteristic"), relationshipMin: getSetting("relationshipMin"),
       relationshipMax: getSetting("relationshipMax"), maxInspiration: 6, resources,
       domains: this.actor.items.filter((item) => item.type === "domain").map((domain) => ({ id: domain.id, name: domain.name, system: domain.system, abilities: this.actor.items.filter((item) => item.type === "ability" && item.system.domainId === domain.id) })),
@@ -170,6 +172,9 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         }
         if (action === "toggle-description") return button.closest("article")?.classList.toggle("description-open");
         const handlers = {
+          "edit-name": VitruviumActorSheet.#editName,
+          "save-name": VitruviumActorSheet.#saveName,
+          "cancel-name": VitruviumActorSheet.#cancelName,
           "adjust-inspiration": VitruviumActorSheet.#adjustInspiration,
           "adjust-characteristic": VitruviumActorSheet.#adjustCharacteristic,
           "create-item": VitruviumActorSheet.#createItem, "delete-item": VitruviumActorSheet.#deleteItem,
@@ -227,6 +232,25 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         }
       });
     });
+  }
+
+  static async #editName() {
+    this.editingName = true;
+    return this.render();
+  }
+
+  static async #saveName(event, target) {
+    const input = target.closest(".character-name")?.querySelector(".character-name-input");
+    const name = input?.value.trim();
+    if (!name) return ui.notifications.warn("Имя персонажа не может быть пустым.");
+    await this.actor.update({ name });
+    this.editingName = false;
+    return this.render();
+  }
+
+  static async #cancelName() {
+    this.editingName = false;
+    return this.render();
   }
 
   static async #adjustCharacteristic(event, target) {
