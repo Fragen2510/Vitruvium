@@ -287,6 +287,7 @@
 #chat .message-content .vitruvium-chat-card ol li { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 9px; border-radius:6px; background:#222e39; }
 #chat .message-content .vitruvium-chat-card ol li.chosen { background:#20372f; box-shadow:inset 3px 0 #79d6a0; }
 #chat .message-content .vitruvium-chat-card ol li b { color:#8fe0ae; white-space:nowrap; }
+#chat .message-content .vitruvium-chat-card ol li .roll-values { flex:1 1 auto; min-width:0; color:#c5d2de; font-size:.8rem; text-align:center; white-space:normal; overflow-wrap:anywhere; }
 #chat .message-content .vitruvium-chat-card ol li.bonus-roll { border:1px solid #655534; background:#302a1c; }
 #chat .message-content .vitruvium-chat-card footer { display:flex; align-items:center; justify-content:space-between; padding-top:8px; border-top:1px solid #3b4b59; }
 #chat .message-content .vitruvium-chat-card footer strong { color:#ffc16b; font-size:1.15rem; }

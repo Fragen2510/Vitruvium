@@ -36,18 +36,21 @@ function renderRollCard(data) {
   const bonusSuccesses = data.bonusDice.reduce((total, result) => total + result, 0)
     + data.domainSuccesses.reduce((total, result) => total + result.successes, 0);
   const successes = chosen.successes + bonusSuccesses;
-  const rolls = data.pools.map((pool, index) => `<li${index === data.chosenIndex ? " class=\"chosen\"" : ""}><span>Бросок ${index + 1}</span><b>${pool.successes} ${successLabel(pool.successes)}</b></li>`).join("");
+  const rolls = data.pools.map((pool, index) => {
+    const results = (pool.results ?? []).map((result) => `${result} ${successLabel(result)}`).join(", ") || "Значения кубиков не сохранены";
+    return `<li${index === data.chosenIndex ? " class=\"chosen\"" : ""}><span>Бросок ${index + 1}</span><span class="roll-values">${results}</span><b>${pool.successes} ${successLabel(pool.successes)}</b></li>`;
+  }).join("");
   const bonusDiceSuccesses = data.bonusDice.reduce((total, result) => total + result, 0);
-  const bonusDice = data.bonusDice.length ? `<li class="bonus-roll"><span>Дополнительные кубики: ${data.bonusDice.length}d6</span><b>+${bonusDiceSuccesses} ${successLabel(bonusDiceSuccesses)}</b></li>` : "";
+  const bonusDice = data.bonusDice.length ? `<li class="bonus-roll"><span>Дополнительные d6: ${data.bonusDice.map((result) => `${result} ${successLabel(result)}`).join(", ")}</span><b>+${bonusDiceSuccesses} ${successLabel(bonusDiceSuccesses)}</b></li>` : "";
   const domainBonuses = data.domainSuccesses.map((result) => `<li class="bonus-roll"><span>${escapeHtml(result.name)} (уровень ${result.level})</span><b>+${result.successes} ${successLabel(result.successes)}</b></li>`).join("");
   const totalInspirationSpent = data.inspirationSpent + data.bonusDice.length + data.domainSuccesses.length;
   const inspiration = totalInspirationSpent ? `<span><small>Вдохновение</small><b>−${totalInspirationSpent}</b></span>` : "";
-  const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
-  const canAddDie = data.actorUuid && data.inspirationRemaining > 0 && data.poolDice + data.bonusDice.length < maxDice;
-  const domainOptions = data.domains.map((domain) => `<option value="${escapeHtml(domain.id)}">${escapeHtml(domain.name)} (уровень ${domain.level}, +${domain.level})</option>`).join("");
-  const dieAction = canAddDie ? `<div class="roll-action-group"><button type="button" data-vitruvium-roll-action="add-die">Добавить кубик</button><small>+1d6 за 1 вдохновение</small></div>` : "";
-  const domainAction = data.actorUuid && data.inspirationRemaining > 0 && domainOptions ? `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи</button><small>1 вдохновение добавляет успехи по уровню домена</small></label>` : "";
-  const actions = dieAction || domainAction ? `<div class="roll-actions">${dieAction}${domainAction}</div>` : "";
+  const domainOptions = data.domains.length
+    ? data.domains.map((domain) => `<option value="${escapeHtml(domain.id)}">${escapeHtml(domain.name)} (уровень ${domain.level}, +${domain.level})</option>`).join("")
+    : `<option value="">Нет доменов</option>`;
+  const dieAction = `<div class="roll-action-group"><button type="button" data-vitruvium-roll-action="add-die">Добавить кубик</button><small>+1d6 за 1 вдохновение</small></div>`;
+  const domainAction = `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи</button><small>1 вдохновение добавляет успехи по уровню домена</small></label>`;
+  const actions = `<div class="roll-actions">${dieAction}${domainAction}</div>`;
   return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary"><span><small>Пул</small><b>${data.baseDice}+${data.inspirationSpent}=${data.poolDice}d6</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
 }
 
@@ -65,7 +68,8 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, s
   for (let i = 0; i < attempts; i += 1) {
     const roll = await (new Roll(`${poolSize}d6`)).evaluate();
     const faces = roll.dice[0].results.map((result) => result.result);
-    pools.push({ faces, successes: faces.reduce((total, face) => total + dieSuccess(face), 0) });
+    const results = faces.map(dieSuccess);
+    pools.push({ results, successes: results.reduce((total, result) => total + result, 0) });
   }
 
   const chosen = pools.reduce((selected, pool) => {
@@ -78,7 +82,7 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, s
     actorUuid: actor?.uuid ?? null, character: actor?.name ?? speaker?.alias ?? "Без персонажа",
     baseDice: count, poolDice: poolSize, mode,
     inspirationSpent: spentInspiration, inspirationRemaining: availableInspiration - spentInspiration,
-    pools: pools.map((pool) => ({ successes: pool.successes })),
+    pools: pools.map((pool) => ({ results: pool.results, successes: pool.successes })),
     chosenIndex: pools.indexOf(chosen), bonusDice: [], domainSuccesses: [],
     domains: actor?.items?.filter((item) => item.type === "domain").map((domain) => ({
       id: domain.id, name: domain.name, level: clamp(domain.system.value, 1, 3)
@@ -107,16 +111,16 @@ async function handleRollAction(event) {
   event.stopPropagation();
   const action = button.dataset.vitruviumRollAction;
   if (!['add-die', 'add-domain-success'].includes(action)) return;
-  button.disabled = true;
   try {
     const messageId = button.closest("[data-message-id]")?.dataset.messageId;
     const message = messageId ? game.messages.get(messageId) : null;
     const data = foundry.utils.deepClone(message?.flags?.[SYSTEM_ID]?.roll);
-    if (!message || !data || !message.canUserModify(game.user, "update")) return;
+    if (!message || !data || !data.actorUuid || !message.canUserModify(game.user, "update")) return;
     const actor = await fromUuid(data.actorUuid);
     const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
     const availableInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
     if (!actor?.isOwner || !availableInspiration) return;
+    button.disabled = true;
     let bonusDieSuccesses = null;
     let domainBonus = null;
     if (action === "add-die") {
