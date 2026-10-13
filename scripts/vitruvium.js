@@ -115,8 +115,8 @@ async function handleRollAction(event) {
     const messageId = button.closest("[data-message-id]")?.dataset.messageId;
     const message = messageId ? game.messages.get(messageId) : null;
     const data = foundry.utils.deepClone(message?.flags?.[SYSTEM_ID]?.roll);
-    if (!message || !data || !data.actorUuid || !message.canUserModify(game.user, "update")) return;
-    const actor = await fromUuid(data.actorUuid);
+    if (!message || !data || !message.canUserModify(game.user, "update")) return;
+    const actor = (data.actorUuid ? await fromUuid(data.actorUuid) : null) ?? getSpeakerActor(message.speaker);
     const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
     const availableInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
     if (!actor?.isOwner || !availableInspiration) return;
@@ -845,9 +845,9 @@ Hooks.on("preDeleteItem", (item, options, userId) => protectAspects(item, userId
 
 Hooks.on("renderChatLog", (app, html) => renderChatTray(app?.element ?? html));
 Hooks.on("renderChat", (app, html) => renderChatTray(app?.element ?? html));
-Hooks.on("updateActor", (actor) => {
+Hooks.on("updateActor", () => {
   const tray = document.querySelector("#vitruvium-dice-tray");
-  if (tray && getSpeakerActor()?.uuid === actor.uuid) updateTrayDisplay(tray);
+  if (tray) updateTrayDisplay(tray);
 });
 Hooks.once("ready", () => {
   document.addEventListener("click", handleTrayClick, true);
