@@ -21,6 +21,32 @@ const successLabel = (count) => {
   return "успехов";
 };
 
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[character]);
+}
+
+function renderRollCard(data) {
+  const chosen = data.pools[data.chosenIndex];
+  const bonusSuccesses = data.bonusDice.reduce((total, result) => total + result, 0)
+    + data.domainSuccesses.reduce((total, result) => total + result.successes, 0);
+  const successes = chosen.successes + bonusSuccesses;
+  const rolls = data.pools.map((pool, index) => `<li${index === data.chosenIndex ? " class=\"chosen\"" : ""}><span>Бросок ${index + 1}</span><b>${pool.successes} ${successLabel(pool.successes)}</b></li>`).join("");
+  const bonusDiceSuccesses = data.bonusDice.reduce((total, result) => total + result, 0);
+  const bonusDice = data.bonusDice.length ? `<li class="bonus-roll"><span>Доп. d6 вдохновения ×${data.bonusDice.length}</span><b>+${bonusDiceSuccesses} ${successLabel(bonusDiceSuccesses)}</b></li>` : "";
+  const domainBonuses = data.domainSuccesses.map((result) => `<li class="bonus-roll"><span>${escapeHtml(result.name)} · уровень ${result.level}</span><b>+${result.successes} ${successLabel(result.successes)}</b></li>`).join("");
+  const totalInspirationSpent = data.inspirationSpent + data.bonusDice.length + data.domainSuccesses.length;
+  const inspiration = totalInspirationSpent ? `<span><small>Вдохновение</small><b>−${totalInspirationSpent}</b></span>` : "";
+  const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
+  const canAddDie = data.actorUuid && data.inspirationRemaining > 0 && data.poolDice + data.bonusDice.length < maxDice;
+  const domainOptions = data.domains.map((domain) => `<option value="${escapeHtml(domain.id)}">${escapeHtml(domain.name)} · уровень ${domain.level} (+${domain.level})</option>`).join("");
+  const dieAction = canAddDie ? `<button type="button" data-vitruvium-roll-action="add-die">Добавить d6 · −1 вдохновение</button>` : "";
+  const domainAction = data.actorUuid && data.inspirationRemaining > 0 && domainOptions ? `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи · −1 вдохновение</button></label>` : "";
+  const actions = dieAction || domainAction ? `<div class="roll-actions">${dieAction}${domainAction}</div>` : "";
+  return `<section class="vitruvium-chat-card"><header><h3>Бросок Vitruvium</h3><span class="roll-mode">${data.mode}</span></header><div class="roll-summary"><span><small>Пул</small><b>${data.baseDice} + ${data.inspirationSpent} = ${data.poolDice} d6</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
+}
+
 /** Roll a special d6 pool. Each die yields 0, 1 or 2 successes. */
 async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, speaker, actor }) {
   const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
@@ -43,13 +69,20 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, s
     if (net < 0) return pool.successes < selected.successes ? pool : selected;
     return selected;
   });
-  const rolls = pools.map((pool, index) => `<li${pool === chosen ? " class=\"chosen\"" : ""}><span>Бросок ${index + 1}</span><span class="roll-faces">${pool.faces.map((face) => `${face} <small>(${dieSuccess(face)})</small>`).join(" · ")}</span><b>${pool.successes} ${successLabel(pool.successes)}</b></li>`).join("");
   const mode = net > 0 ? `Преимущество ×${net}` : net < 0 ? `Помеха ×${Math.abs(net)}` : "Обычный бросок";
-  const inspirationNote = spentInspiration ? `<span><small>Вдохновение</small><b>−${spentInspiration}</b></span>` : "";
-  const content = `<section class="vitruvium-chat-card"><header><h3>Бросок Vitruvium</h3><span class="roll-mode">${mode}</span></header><div class="roll-summary"><span><small>Пул</small><b>${count} + ${spentInspiration} = ${poolSize} d6</b></span>${inspirationNote}</div><ol>${rolls}</ol><footer><span>Итог</span><strong>${chosen.successes} ${successLabel(chosen.successes)}</strong></footer><small class="roll-legend">На каждом кубике: 1–3 = 0, 4–5 = 1, 6 = 2 успеха.</small></section>`;
+  const result = {
+    actorUuid: actor?.uuid ?? null, baseDice: count, poolDice: poolSize, mode,
+    inspirationSpent: spentInspiration, inspirationRemaining: availableInspiration - spentInspiration,
+    pools: pools.map((pool) => ({ successes: pool.successes })),
+    chosenIndex: pools.indexOf(chosen), bonusDice: [], domainSuccesses: [],
+    domains: actor?.items?.filter((item) => item.type === "domain").map((domain) => ({
+      id: domain.id, name: domain.name, level: clamp(domain.system.value, 1, 3)
+    })) ?? []
+  };
+  const content = renderRollCard(result);
   if (spentInspiration && actor) await actor.update({ "system.inspiration": availableInspiration - spentInspiration });
   try {
-    await ChatMessage.create({ content, speaker });
+    await ChatMessage.create({ content, speaker, flags: { [SYSTEM_ID]: { roll: result } } });
   } catch (error) {
     if (spentInspiration && actor) {
       try {
@@ -59,6 +92,54 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, s
       }
     }
     throw error;
+  }
+}
+
+async function handleRollAction(event) {
+  const button = event.target instanceof Element ? event.target.closest("[data-vitruvium-roll-action]") : null;
+  if (!button || button.disabled) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const action = button.dataset.vitruviumRollAction;
+  if (!['add-die', 'add-domain-success'].includes(action)) return;
+  button.disabled = true;
+  try {
+    const messageId = button.closest("[data-message-id]")?.dataset.messageId;
+    const message = messageId ? game.messages.get(messageId) : null;
+    const data = foundry.utils.deepClone(message?.flags?.[SYSTEM_ID]?.roll);
+    if (!message || !data || !message.canUserModify(game.user, "update")) return;
+    const actor = await fromUuid(data.actorUuid);
+    const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
+    const availableInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
+    if (!actor?.isOwner || !availableInspiration) return;
+    let bonusDieSuccesses = null;
+    let domainBonus = null;
+    if (action === "add-die") {
+      if (data.poolDice + data.bonusDice.length >= maxDice) return;
+      const bonusRoll = await (new Roll("1d6")).evaluate();
+      bonusDieSuccesses = dieSuccess(bonusRoll.dice[0].results[0].result);
+    } else {
+      const domainId = button.closest(".roll-actions")?.querySelector("[data-roll-domain]")?.value;
+      const domain = actor.items.get(domainId);
+      if (!domain || domain.type !== "domain" || !data.domains.some((entry) => entry.id === domain.id)) return;
+      const level = clamp(domain.system.value, 1, 3);
+      domainBonus = { name: domain.name, level, successes: level };
+    }
+    await actor.update({ "system.inspiration": availableInspiration - 1 });
+    data.inspirationRemaining = availableInspiration - 1;
+    if (bonusDieSuccesses !== null) data.bonusDice.push(bonusDieSuccesses);
+    if (domainBonus) data.domainSuccesses.push(domainBonus);
+    try {
+      await message.update({ content: renderRollCard(data), [`flags.${SYSTEM_ID}.roll`]: data });
+    } catch (error) {
+      await actor.update({ "system.inspiration": availableInspiration });
+      throw error;
+    }
+  } catch (error) {
+    console.error("Vitruvium inspiration die action failed.", error);
+    ui.notifications.error("Не удалось добавить кубик вдохновения.");
+  } finally {
+    if (button.isConnected) button.disabled = false;
   }
 }
 
@@ -722,6 +803,7 @@ Hooks.on("renderChatLog", (app, html) => renderChatTray(app?.element ?? html));
 Hooks.on("renderChat", (app, html) => renderChatTray(app?.element ?? html));
 Hooks.once("ready", () => {
   document.addEventListener("click", handleTrayClick, true);
+  document.addEventListener("click", handleRollAction, true);
   game.vitruvium = { rollPool, renderChatTray };
   renderChatTray(ui.chat?.element ?? document.querySelector("#chat"));
 });

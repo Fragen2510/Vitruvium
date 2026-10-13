@@ -2,6 +2,12 @@
   <header><h2>Аспекты мира</h2>{{#if canEdit}}<button type="button" data-aspect-action="create">Добавить аспект</button>{{/if}}</header>
   <p class="manager-intro">Аспекты принадлежат игровому миру</p>
   <div class="aspect-list scroll-list">
-    {{#each aspects}}<article><div><b>{{name}}</b>{{#if system.description}}<details class="description-details"><summary>Описание</summary><p>{{system.description}}</p></details>{{/if}}<small>Уровни: {{system.levels}}</small><small>Статусы: {{system.statuses}}</small></div>{{#if ../canEdit}}<div class="card-actions"><button type="button" data-aspect-action="edit" data-item-id="{{id}}">Настроить</button><button type="button" data-aspect-action="delete" data-item-id="{{id}}">Удалить</button></div>{{/if}}</article>{{else}}<p class="empty">Аспекты пока не созданы.</p>{{/each}}
+    {{#each aspects}}
+      <article>
+        <div class="aspect-info"><b>{{name}}</b><div class="aspect-meta"><small>Уровни: {{system.levels}}</small><small>Статусы: {{system.statuses}}</small></div></div>
+        {{#if ../canEdit}}<div class="card-actions"><button type="button" data-aspect-action="edit" data-item-id="{{id}}">Настроить</button><button type="button" data-aspect-action="delete" data-item-id="{{id}}">Удалить</button></div>{{/if}}
+        {{#if system.description}}<details class="description-details"><summary>Описание</summary><p>{{system.description}}</p></details>{{/if}}
+      </article>
+    {{else}}<p class="empty">Аспекты пока не созданы.</p>{{/each}}
   </div>
 </section>
