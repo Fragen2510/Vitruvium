@@ -456,6 +456,34 @@
   .vitruvium .possession-card { grid-template-columns:56px minmax(0,1fr); }
   .vitruvium .possession-card > .entity-image { width:52px; height:52px; }
 }
+
+  .vitruvium.sheet.actor,
+  .vitruvium.sheet.actor .window-content,
+  .vitruvium .character-sheet,
+  .vitruvium .character-header,
+  .vitruvium .character-layout,
+  .vitruvium .left-column,
+  .vitruvium .main-column,
+  .vitruvium .main-column > .panel { min-width:0; max-width:100%; }
+  .vitruvium .character-header { grid-template-columns:minmax(0,.8fr) minmax(0,2fr); }
+  .vitruvium .character-layout { grid-template-columns:minmax(0,.72fr) minmax(0,1.8fr); }
+  .vitruvium .panel > header { width:100%; min-width:0; }
+  .vitruvium .panel > header h2 { flex:1 1 auto; min-width:0; overflow-wrap:anywhere; }
+  .vitruvium .panel > header .panel-action { flex:0 0 28px; margin-right:0; }
+  .vitruvium .horizontal-list.scroll-list {
+    display:flex; flex:0 1 100%; width:100%; max-width:100%; min-width:0;
+    overflow-x:auto; overflow-y:hidden; scrollbar-width:thin;
+    scrollbar-color:#f0a84a #111820; scroll-behavior:smooth;
+  }
+  .vitruvium .horizontal-list.scroll-list::-webkit-scrollbar { display:block; width:auto; height:11px; }
+  .vitruvium .horizontal-list.scroll-list::-webkit-scrollbar-track { border-radius:6px; background:#111820; }
+  .vitruvium .horizontal-list.scroll-list::-webkit-scrollbar-thumb { border:2px solid #111820; border-radius:6px; background:#f0a84a; }
+  .vitruvium .horizontal-list.scroll-list > .possession-card { flex-shrink:0; }
+  .vitruvium-dice-tray .tray-counter-heading { display:grid; grid-template-columns:minmax(0,1fr); justify-content:stretch; gap:2px; }
+  .vitruvium-dice-tray .tray-counter-heading > small { white-space:normal; overflow-wrap:anywhere; }
+  @media (max-width:760px) {
+    .vitruvium .character-layout { grid-template-columns:minmax(0,1fr); }
+  }
 @media (max-width:460px) {
   #chat .message-content .vitruvium-chat-card ol li { grid-template-columns:minmax(0,1fr) auto; }
   #chat .message-content .vitruvium-chat-card .roll-faces { grid-column:1 / -1; grid-row:2; }
