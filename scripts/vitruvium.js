@@ -11,6 +11,10 @@ const CHARACTERISTICS = {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
 const getSetting = (key) => game.settings.get(SYSTEM_ID, key);
+const hasCustomImage = (image) => {
+  const path = String(image ?? "").split("?")[0].toLowerCase();
+  return Boolean(path) && !["icons/svg/mystery-man.svg", "icons/svg/item-bag.svg"].some((placeholder) => path.endsWith(placeholder));
+};
 const dieSuccess = (face) => (face === 6 ? 2 : face >= 4 ? 1 : 0);
 const successLabel = (count) => {
   const lastTwo = count % 100;
@@ -44,7 +48,7 @@ function renderRollCard(data) {
   const dieAction = canAddDie ? `<button type="button" data-vitruvium-roll-action="add-die">Добавить d6 · −1 вдохновение</button>` : "";
   const domainAction = data.actorUuid && data.inspirationRemaining > 0 && domainOptions ? `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи · −1 вдохновение</button></label>` : "";
   const actions = dieAction || domainAction ? `<div class="roll-actions">${dieAction}${domainAction}</div>` : "";
-  return `<section class="vitruvium-chat-card"><header><h3>Бросок Vitruvium</h3><span class="roll-mode">${data.mode}</span></header><div class="roll-summary"><span><small>Пул</small><b>${data.baseDice} + ${data.inspirationSpent} = ${data.poolDice} d6</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
+  return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary"><span><small>Пул</small><b>${data.baseDice} + ${data.inspirationSpent} = ${data.poolDice} d6</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
 }
 
 /** Roll a special d6 pool. Each die yields 0, 1 or 2 successes. */
@@ -71,7 +75,8 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, s
   });
   const mode = net > 0 ? `Преимущество ×${net}` : net < 0 ? `Помеха ×${Math.abs(net)}` : "Обычный бросок";
   const result = {
-    actorUuid: actor?.uuid ?? null, baseDice: count, poolDice: poolSize, mode,
+    actorUuid: actor?.uuid ?? null, character: actor?.name ?? speaker?.alias ?? "Без персонажа",
+    baseDice: count, poolDice: poolSize, mode,
     inspirationSpent: spentInspiration, inspirationRemaining: availableInspiration - spentInspiration,
     pools: pools.map((pool) => ({ successes: pool.successes })),
     chosenIndex: pools.indexOf(chosen), bonusDice: [], domainSuccesses: [],
@@ -282,18 +287,32 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
 
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
-    const relationships = this.actor.system.relationships ?? [];
-    const resources = (this.actor.system.resources ?? []).map((resource, index) => ({ ...resource, id: resource.id ?? `resource-${index}` }));
+    const relationships = (this.actor.system.relationships ?? []).map((relationship) => ({
+      ...relationship, hasImage: hasCustomImage(relationship.portrait)
+    }));
+    const resources = (this.actor.system.resources ?? []).map((resource, index) => ({
+      ...resource, id: resource.id ?? `resource-${index}`, hasImage: hasCustomImage(resource.img)
+    }));
+    const itemsOfType = (type) => this.actor.items.filter((item) => item.type === type).map((item) => ({
+      id: item.id, name: item.name, img: item.img, hasImage: hasCustomImage(item.img), system: item.system
+    }));
+    const domains = this.actor.items.filter((item) => item.type === "domain").map((domain) => ({
+      id: domain.id, name: domain.name, img: domain.img, hasImage: hasCustomImage(domain.img), system: domain.system,
+      abilities: this.actor.items.filter((item) => item.type === "ability" && item.system.domainId === domain.id).map((ability) => ({
+        id: ability.id, name: ability.name, img: ability.img, hasImage: hasCustomImage(ability.img), system: ability.system
+      }))
+    }));
     return {
       ...context, actor: this.actor, system: this.actor.system, characteristics: CHARACTERISTICS,
+      actorHasImage: hasCustomImage(this.actor.img),
       editingName: this.editingName,
       relationships, maxCharacteristic: getSetting("maxCharacteristic"), relationshipMin: getSetting("relationshipMin"),
       relationshipMax: getSetting("relationshipMax"), maxInspiration: 6, resources,
-      domains: this.actor.items.filter((item) => item.type === "domain").map((domain) => ({ id: domain.id, name: domain.name, system: domain.system, abilities: this.actor.items.filter((item) => item.type === "ability" && item.system.domainId === domain.id) })),
-      abilities: this.actor.items.filter((item) => item.type === "ability"),
-      attributes: this.actor.items.filter((item) => item.type === "attribute"),
-      possessions: this.actor.items.filter((item) => item.type === "possession"),
-      statuses: this.actor.items.filter((item) => item.type === "status"),
+      domains,
+      abilities: itemsOfType("ability"),
+      attributes: itemsOfType("attribute"),
+      possessions: itemsOfType("possession"),
+      statuses: itemsOfType("status"),
       editing: this.editing, editingItems: this.editingItems
     };
   }
@@ -327,6 +346,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
           "save-resource": VitruviumActorSheet.#saveResource, "cancel-resource": VitruviumActorSheet.#cancelResource,
           "delete-resource": VitruviumActorSheet.#deleteResource, "adjust-resource": VitruviumActorSheet.#adjustResource,
           "remove-relationship-image": VitruviumActorSheet.#removeRelationshipImage,
+          "remove-actor-image": VitruviumActorSheet.#removeActorImage,
           "remove-item-image": VitruviumActorSheet.#removeItemImage,
           "remove-resource-image": VitruviumActorSheet.#removeResourceImage
         };
@@ -350,6 +370,19 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         } catch (error) {
           console.error("Vitruvium relationship image update failed.", error);
           ui.notifications.error("Не удалось сохранить изображение отношения.");
+        }
+      });
+    });
+    this.element.querySelectorAll("[data-actor-image]").forEach((input) => {
+      input.addEventListener("change", async () => {
+        try {
+          const file = input.files?.[0];
+          if (!file) return;
+          await this.actor.update({ img: await VitruviumActorSheet.#readImage(file) });
+          return this.render();
+        } catch (error) {
+          console.error("Vitruvium actor image update failed.", error);
+          ui.notifications.error("Не удалось сохранить фотографию персонажа.");
         }
       });
     });
@@ -527,6 +560,11 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     return this.render();
   }
 
+  static async #removeActorImage() {
+    await this.actor.update({ img: "icons/svg/mystery-man.svg" });
+    return this.render();
+  }
+
   static async #updateRelationshipImage(input) {
     const file = input.files?.[0];
     if (!file) return;
@@ -674,6 +712,7 @@ class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationM
     const context = await super._prepareContext(options);
     return {
       ...context, item: this.item, system: this.item.system,
+      itemHasImage: hasCustomImage(this.item.img),
       hasValue: ["domain", "aspect"].includes(this.item.type), isAspect: this.item.type === "aspect",
       canEditAspect: game.user.isGM || game.user.role >= CONST.USER_ROLES.ASSISTANT
     };

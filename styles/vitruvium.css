@@ -275,7 +275,9 @@
 #chat .message-content .vitruvium-chat-card small,
 #chat .message-content .vitruvium-chat-card footer { color:#edf3f7; }
 #chat .message-content .vitruvium-chat-card header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:5px 12px; }
+#chat .message-content .vitruvium-chat-card .roll-heading { display:grid; min-width:0; gap:2px; }
 #chat .message-content .vitruvium-chat-card h3 { margin:0; color:#ffc16b; font-size:1.1rem; }
+#chat .message-content .vitruvium-chat-card .roll-character { overflow-wrap:anywhere; color:#dce6ef; font-size:.9rem; }
 #chat .message-content .vitruvium-chat-card .roll-mode { color:#c5d2de; font-size:.9rem; }
 #chat .message-content .vitruvium-chat-card .roll-summary { display:flex; flex-wrap:wrap; gap:8px; }
 #chat .message-content .vitruvium-chat-card .roll-summary > span { display:grid; gap:2px; min-width:92px; padding:7px 9px; border-radius:6px; background:#253340; }
@@ -352,7 +354,76 @@
 .vitruvium .relationship-edit-value input { width:100%; }
 .vitruvium .relationships-panel .relationship-edit-actions { grid-column:1 / -1; }
 .vitruvium .ability-list .ability-item { grid-template-columns:88px minmax(0,1fr); align-items:center; }
+.vitruvium .ability-list > .ability-item { display:grid; }
 .vitruvium .ability-list .ability-image { width:84px; height:84px; object-fit:contain; }
+.vitruvium .profile-frame { display:grid; gap:9px; min-width:0; }
+.vitruvium .profile-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.vitruvium .entity-card { grid-template-columns:minmax(0,1fr); }
+.vitruvium .entity-card.has-image { grid-template-columns:72px minmax(0,1fr); }
+.vitruvium .entity-card > .entity-edit,
+.vitruvium .entity-card > .entity-content { grid-column:1 / -1; min-width:0; }
+.vitruvium .entity-card.has-image > .entity-edit,
+.vitruvium .entity-card.has-image > .entity-content { grid-column:2; }
+.vitruvium .entity-card.has-image > .entity-image { grid-column:1; grid-row:1; }
+.vitruvium .domain-card { grid-template-columns:minmax(0,1fr); }
+.vitruvium .domain-card.has-image { grid-template-columns:78px minmax(0,1fr); }
+.vitruvium .domain-card > .domain-content,
+.vitruvium .domain-card > .domain-edit { grid-column:1 / -1; min-width:0; }
+.vitruvium .domain-card.has-image > .domain-content,
+.vitruvium .domain-card.has-image > .domain-edit { grid-column:2; }
+.vitruvium .domain-card > .entity-image { grid-column:1; grid-row:1; }
+.vitruvium .ability-list > .ability-item { display:grid; grid-template-columns:minmax(0,1fr); align-items:start; }
+.vitruvium .ability-list > .ability-item.has-image { grid-template-columns:88px minmax(0,1fr); align-items:center; }
+.vitruvium .ability-item > .ability-content,
+.vitruvium .ability-item > .ability-edit { grid-column:1 / -1; min-width:0; }
+.vitruvium .ability-item.has-image > .ability-content,
+.vitruvium .ability-item.has-image > .ability-edit { grid-column:2; }
+.vitruvium .ability-item > .ability-image { grid-column:1; grid-row:1; width:84px; height:84px; object-fit:contain; }
+.vitruvium .horizontal-list.scroll-list > .possession-card { display:grid; flex:0 0 160px; grid-template-columns:minmax(0,1fr); align-items:start; }
+.vitruvium .horizontal-list.scroll-list > .possession-card.has-image { grid-template-columns:72px minmax(0,1fr); }
+.vitruvium .horizontal-list.scroll-list > .possession-card.is-editing { flex:0 0 min(360px, calc(100vw - 48px)); grid-template-columns:minmax(0,1fr); }
+.vitruvium .horizontal-list.scroll-list > .possession-card.is-editing.has-image { grid-template-columns:72px minmax(0,1fr); }
+.vitruvium .horizontal-list.scroll-list > .possession-card.is-editing > .entity-edit { grid-column:1 / -1; min-width:0; }
+.vitruvium .horizontal-list.scroll-list > .possession-card.is-editing > .entity-image { grid-column:1; grid-row:1; width:68px; height:68px; }
+.vitruvium .horizontal-list.scroll-list > .possession-card.is-editing .inline-edit { width:100%; }
+.vitruvium .relationships-panel .scroll-list > .relationship { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; }
+.vitruvium .relationships-panel .scroll-list > .relationship.has-image { grid-template-columns:72px minmax(0,1fr) auto; }
+.vitruvium .relationships-panel .relationship-content,
+.vitruvium .relationships-panel .relationship-edit { grid-column:1; min-width:0; }
+.vitruvium .relationships-panel .relationship.has-image .relationship-content,
+.vitruvium .relationships-panel .relationship.has-image .relationship-edit { grid-column:2; }
+.vitruvium .relationships-panel .relationship-portrait { grid-column:1; grid-row:1; width:68px; height:68px; }
+.vitruvium .relationships-panel .relationship-level { grid-column:2; }
+.vitruvium .relationships-panel .relationship.has-image .relationship-level { grid-column:3; }
+.vitruvium .relationship-edit-value { grid-column:2; }
+.vitruvium .relationship.has-image .relationship-edit-value { grid-column:3; }
+.vitruvium .resources-panel .resource-card { grid-template-columns:minmax(0,1fr) auto; }
+.vitruvium .resources-panel .resource-card.has-image { grid-template-columns:52px minmax(0,1fr) auto; }
+.vitruvium .resources-panel .resource-card > .resource-content { grid-column:1; min-width:0; }
+.vitruvium .resources-panel .resource-card.has-image > .resource-content { grid-column:2; }
+.vitruvium .resources-panel .resource-card > .resource-edit { grid-column:1 / -1; min-width:0; }
+.vitruvium .resources-panel .resource-card.has-image > .resource-edit { grid-column:2 / -1; }
+.vitruvium .resources-panel .resource-card > .resource-image { grid-column:1; grid-row:1; width:50px; height:50px; }
+.vitruvium-dice-tray .tray-counter { grid-template-columns:30px minmax(20px,auto) 30px; justify-content:start; }
+.vitruvium-dice-tray .tray-counter button { width:30px; min-width:30px; max-width:30px; height:30px; min-height:30px; padding:0; }
+.vitruvium-dice-tray .tray-counter b { min-width:20px; }
+#chat .message-content .vitruvium-chat-card .roll-actions { display:grid; grid-template-columns:minmax(0,1fr); min-width:0; }
+#chat .message-content .vitruvium-chat-card .roll-actions > button,
+#chat .message-content .vitruvium-chat-card .domain-success-action > button { width:100%; min-width:0; white-space:normal; overflow-wrap:anywhere; line-height:1.25; }
+#chat .message-content .vitruvium-chat-card .domain-success-action { grid-template-columns:minmax(0,1fr); width:100%; min-width:0; box-sizing:border-box; }
+#chat .message-content .vitruvium-chat-card .domain-success-action > span { grid-column:1; }
+.vitruvium.item .item-sheet > header > .image-button { flex:0 0 auto; }
+@media (max-width:760px) {
+  .vitruvium .entity-card.has-image { grid-template-columns:58px minmax(0,1fr); }
+  .vitruvium .domain-card.has-image { grid-template-columns:62px minmax(0,1fr); }
+  .vitruvium .ability-list > .ability-item.has-image { grid-template-columns:68px minmax(0,1fr); }
+  .vitruvium .ability-item.has-image > .ability-image { width:64px; height:64px; }
+  .vitruvium .relationships-panel .scroll-list > .relationship.has-image { grid-template-columns:58px minmax(0,1fr); }
+  .vitruvium .relationships-panel .relationship.has-image .relationship-level,
+  .vitruvium .relationships-panel .relationship.has-image .relationship-edit-value { grid-column:2; }
+  .vitruvium .horizontal-list.scroll-list > .possession-card.has-image,
+  .vitruvium .horizontal-list.scroll-list > .possession-card.is-editing.has-image { grid-template-columns:56px minmax(0,1fr); }
+}
 .vitruvium .aspect-list article > .description-details { grid-column:1 / -1; width:100%; }
 .vitruvium .aspect-list .aspect-meta { display:flex; flex-wrap:wrap; gap:4px 12px; color:#aebdca; }
 @media (max-width:760px) {
