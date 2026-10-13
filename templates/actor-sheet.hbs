@@ -11,6 +11,14 @@
           <div class="form-actions"><button type="button" data-vitruvium-action="save-name">Сохранить</button><button type="button" data-vitruvium-action="cancel-name">Отмена</button></div>
         </div>
       {{/if}}
+      <section class="inspiration-panel header-inspiration">
+        <header><h2>Вдохновение</h2></header>
+        <div class="inspiration-counter">
+          <button type="button" data-vitruvium-action="adjust-inspiration" data-delta="-1" aria-label="Уменьшить вдохновение">−</button>
+          <b>{{system.inspiration}}</b><span>/ {{maxInspiration}}</span>
+          <button type="button" data-vitruvium-action="adjust-inspiration" data-delta="1" aria-label="Увеличить вдохновение">+</button>
+        </div>
+      </section>
     </div>
     <section class="stat-panel">
       <header><h2>Характеристики</h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="characteristics" aria-label="Редактировать характеристики">⋯</button></header>
@@ -41,14 +49,6 @@
             <label class="image-button">{{#if actorHasImage}}Изменить фото{{else}}Добавить фото{{/if}}<input type="file" data-actor-image accept="image/*"></label>
             {{#if actorHasImage}}<button type="button" data-vitruvium-action="remove-actor-image">Удалить фото</button>{{/if}}
           </div>
-        </div>
-      </section>
-      <section class="panel inspiration-panel">
-        <header><h2>Вдохновение</h2></header>
-        <div class="inspiration-counter">
-          <button type="button" data-vitruvium-action="adjust-inspiration" data-delta="-1" aria-label="Уменьшить вдохновение">−</button>
-          <b>{{system.inspiration}}</b><span>/ {{maxInspiration}}</span>
-          <button type="button" data-vitruvium-action="adjust-inspiration" data-delta="1" aria-label="Увеличить вдохновение">+</button>
         </div>
       </section>
       <section class="panel status-panel">

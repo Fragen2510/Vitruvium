@@ -493,6 +493,11 @@
 .vitruvium .character-name-header .panel-action { top:8px; right:8px; }
 .vitruvium .character-name-header h1 { font-size:1rem; line-height:1.2; }
 .vitruvium .character-name-editor { gap:6px; }
+.vitruvium .character-name { display:flex; flex-direction:column; align-self:stretch; height:auto; }
+.vitruvium .character-name > .header-inspiration { display:grid; gap:5px; margin-top:auto; padding:8px 0 0; border:0; border-top:1px solid #344455; border-radius:0; background:transparent; box-shadow:none; }
+.vitruvium .character-name > .header-inspiration > header { margin:0; }
+.vitruvium .character-name > .header-inspiration h2 { margin:0; font-size:.88rem; }
+.vitruvium .character-name > .header-inspiration .inspiration-counter { justify-content:flex-start; }
 @media (max-width:760px) {
   .vitruvium .character-header { grid-template-columns:minmax(0,1fr); align-items:start; }
   .vitruvium .character-header > .character-name { align-self:start; height:fit-content; min-height:0; }
@@ -500,7 +505,7 @@
 .vitruvium .character-sheet { container-type:inline-size; }
 @container (max-width:760px) {
   .vitruvium .character-header { grid-template-columns:minmax(0,1fr); align-items:start; }
-  .vitruvium .character-header > .character-name { align-self:start; height:fit-content; min-height:0; }
+  .vitruvium .character-header > .character-name { align-self:start; height:auto; min-height:0; }
   .vitruvium .character-layout { grid-template-columns:minmax(0,1fr); }
   .vitruvium .left-column, .vitruvium .main-column { max-height:none; }
   .vitruvium .stat-strip { grid-template-columns:repeat(3,minmax(0,1fr)); }
