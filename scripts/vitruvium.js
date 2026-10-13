@@ -124,14 +124,12 @@ async function handleRollAction(event) {
     const actor = sameActor && speakerActor?.isOwner && speakerInspiration > 0
       ? speakerActor
       : actorFromRoll ?? speakerActor;
-    const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
     const availableInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
     if (!actor?.isOwner || !availableInspiration) return;
     button.disabled = true;
     let bonusDieSuccesses = null;
     let domainBonus = null;
     if (action === "add-die") {
-      if (data.poolDice + data.bonusDice.length >= maxDice) return;
       const bonusRoll = await (new Roll("1d6")).evaluate();
       bonusDieSuccesses = dieSuccess(bonusRoll.dice[0].results[0].result);
     } else {

@@ -493,3 +493,7 @@
 .vitruvium .character-name-header .panel-action { top:8px; right:8px; }
 .vitruvium .character-name-header h1 { font-size:1rem; line-height:1.2; }
 .vitruvium .character-name-editor { gap:6px; }
+@media (max-width:760px) {
+  .vitruvium .character-header { grid-template-columns:minmax(0,1fr); align-items:start; }
+  .vitruvium .character-header > .character-name { align-self:start; height:fit-content; min-height:0; }
+}
