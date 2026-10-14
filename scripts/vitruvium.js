@@ -1,4 +1,6 @@
 const SYSTEM_ID = "vitruvium";
+const DICE_SO_NICE_MODEL = `systems/${SYSTEM_ID}/assets/dice/vitruvium-d6.glb`;
+let diceSoNiceModelRegistered = false;
 
 const CHARACTERISTICS = {
   physique: { label: "Телосложение" },
@@ -29,6 +31,25 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[character]);
+}
+
+async function registerDiceSoNiceModel(dice3d) {
+  if (!dice3d?.addSystem || !dice3d?.addDicePreset) return;
+  try {
+    const modelUrl = foundry.utils.getRoute(DICE_SO_NICE_MODEL);
+    const response = await fetch(modelUrl, { method: "HEAD" });
+    if (!response.ok) return;
+
+    const { DiceSystem } = await import("/modules/dice-so-nice/api.js");
+    const system = new DiceSystem(SYSTEM_ID, "Vitruvium", "default", "Vitruvium");
+    system.setRoleDefaults("basic");
+    dice3d.addSystem(system);
+    dice3d.addDicePreset({ type: "d6", modelFile: DICE_SO_NICE_MODEL, system: SYSTEM_ID });
+    await dice3d.preloadPresets?.(SYSTEM_ID);
+    diceSoNiceModelRegistered = true;
+  } catch (error) {
+    console.warn("Vitruvium could not register its Dice So Nice d6 model.", error);
+  }
 }
 
 function renderRollCard(data) {
@@ -67,9 +88,10 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, s
 
   for (let i = 0; i < attempts; i += 1) {
     const roll = await (new Roll(`${poolSize}d6`)).evaluate();
+    if (diceSoNiceModelRegistered) roll.options.appearance = { system: SYSTEM_ID };
     const faces = roll.dice[0].results.map((result) => result.result);
     const results = faces.map(dieSuccess);
-    pools.push({ results, successes: results.reduce((total, result) => total + result, 0) });
+    pools.push({ roll, results, successes: results.reduce((total, result) => total + result, 0) });
   }
 
   const chosen = pools.reduce((selected, pool) => {
@@ -91,7 +113,10 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, s
   const content = renderRollCard(result);
   if (spentInspiration && actor) await actor.update({ "system.inspiration": availableInspiration - spentInspiration });
   try {
-    await ChatMessage.create({ content, speaker, flags: { [SYSTEM_ID]: { roll: result } } });
+    await ChatMessage.create({
+      content, speaker, rolls: pools.map((pool) => pool.roll),
+      flags: { [SYSTEM_ID]: { roll: result } }
+    });
   } catch (error) {
     if (spentInspiration && actor) {
       try {
@@ -128,9 +153,11 @@ async function handleRollAction(event) {
     if (!actor?.isOwner || !availableInspiration) return;
     button.disabled = true;
     let bonusDieSuccesses = null;
+    let bonusRoll = null;
     let domainBonus = null;
     if (action === "add-die") {
-      const bonusRoll = await (new Roll("1d6")).evaluate();
+      bonusRoll = await (new Roll("1d6")).evaluate();
+      if (diceSoNiceModelRegistered) bonusRoll.options.appearance = { system: SYSTEM_ID };
       bonusDieSuccesses = dieSuccess(bonusRoll.dice[0].results[0].result);
     } else {
       const domainId = button.closest(".roll-actions")?.querySelector("[data-roll-domain]")?.value;
@@ -144,6 +171,7 @@ async function handleRollAction(event) {
     if (bonusDieSuccesses !== null) data.bonusDice.push(bonusDieSuccesses);
     if (domainBonus) data.domainSuccesses.push(domainBonus);
     try {
+      if (bonusRoll && game.dice3d?.animateRoll) await game.dice3d.animateRoll(bonusRoll, message);
       await message.update({ content: renderRollCard(data), [`flags.${SYSTEM_ID}.roll`]: data });
     } catch (error) {
       await actor.update({ "system.inspiration": availableInspiration });
@@ -850,6 +878,7 @@ Hooks.on("preDeleteItem", (item, options, userId) => protectAspects(item, userId
 
 Hooks.on("renderChatLog", (app, html) => renderChatTray(app?.element ?? html));
 Hooks.on("renderChat", (app, html) => renderChatTray(app?.element ?? html));
+Hooks.once("diceSoNiceReady", (dice3d) => registerDiceSoNiceModel(dice3d));
 Hooks.on("updateActor", () => {
   const tray = document.querySelector("#vitruvium-dice-tray");
   if (tray) updateTrayDisplay(tray);
