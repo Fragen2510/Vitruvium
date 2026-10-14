@@ -1,0 +1,41 @@
+<section class="vitruvium-sheet npc-sheet">
+  <header class="npc-header">
+    <h1>{{actor.name}}</h1>
+  </header>
+  <section class="npc-stats">
+    <label class="npc-stat">
+      <span>Атака</span>
+      <input type="number" min="1" max="99" data-npc-stat="attackDice" value="{{npc.attackDice}}" aria-label="Базовые кубики атаки">
+      <small>d6</small>
+      <button type="button" data-npc-action="roll" data-target="attack">Бросить атаку</button>
+    </label>
+    <label class="npc-stat">
+      <span>Защита</span>
+      <input type="number" min="1" max="99" data-npc-stat="defenseDice" value="{{npc.defenseDice}}" aria-label="Базовые кубики защиты">
+      <small>d6</small>
+      <button type="button" data-npc-action="roll" data-target="defense">Бросить защиту</button>
+    </label>
+    <label class="npc-stat npc-block">
+      <span>Блок</span>
+      <input type="number" min="0" max="99" data-npc-stat="block" value="{{npc.block}}" aria-label="Значение блока">
+    </label>
+  </section>
+  <section class="npc-abilities">
+    <header><h2>Способности</h2><button type="button" data-npc-action="add-ability">Добавить способность</button></header>
+    <div class="npc-ability-list">
+      {{#each npc.abilities}}
+        <article class="npc-ability">
+          <label class="npc-ability-name"><span>Способность</span><input type="text" data-npc-ability-field="name" data-ability-id="{{id}}" value="{{name}}"></label>
+          <label class="npc-ability-bonus"><span>Прибавка кубов</span><input type="number" min="0" max="99" data-npc-ability-field="bonusDice" data-ability-id="{{id}}" value="{{bonusDice}}"><small>d6</small></label>
+          <div class="npc-ability-actions">
+            <button type="button" data-npc-action="roll" data-target="attack" data-ability-id="{{id}}">Атака</button>
+            <button type="button" data-npc-action="roll" data-target="defense" data-ability-id="{{id}}">Защита</button>
+            <button type="button" class="npc-delete-ability" data-npc-action="delete-ability" data-ability-id="{{id}}" aria-label="Удалить способность">Удалить</button>
+          </div>
+        </article>
+      {{else}}
+        <p class="empty">Способностей пока нет.</p>
+      {{/each}}
+    </div>
+  </section>
+</section>

@@ -514,3 +514,34 @@
   .vitruvium .stat-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .vitruvium .domain-grid.scroll-list, .vitruvium .card-grid.scroll-list { grid-template-columns:1fr; }
 }
+.vitruvium .npc-sheet { display:grid; gap:14px; min-width:0; padding:16px; }
+.vitruvium .npc-header { min-width:0; padding:8px 0; border-bottom:1px solid #344455; }
+.vitruvium .npc-header h1 { margin:0; overflow-wrap:anywhere; font-size:1.15rem; }
+.vitruvium .npc-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; min-width:0; }
+.vitruvium .npc-stat { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:7px; min-width:0; padding:12px; border:1px solid #354653; border-radius:8px; background:#202832; }
+.vitruvium .npc-stat > span { grid-column:1 / -1; color:#c7d1db; font-weight:700; }
+.vitruvium .npc-stat input { min-width:0; width:100%; text-align:center; font-size:1.1rem; }
+.vitruvium .npc-stat > small { color:#9fb0bf; }
+.vitruvium .npc-stat button { grid-column:1 / -1; width:100%; }
+.vitruvium .npc-block { align-content:start; }
+.vitruvium .npc-abilities { display:grid; gap:10px; min-width:0; padding:12px; border:1px solid #344455; border-radius:9px; background:#181e26; }
+.vitruvium .npc-abilities > header { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
+.vitruvium .npc-abilities h2 { margin:0; font-size:1rem; }
+.vitruvium .npc-ability-list { display:grid; gap:8px; min-width:0; }
+.vitruvium .npc-ability { display:grid; grid-template-columns:minmax(150px,1fr) minmax(110px,.5fr) auto; align-items:end; gap:8px; min-width:0; padding:10px; border:1px solid #354653; border-radius:8px; background:#232d38; }
+.vitruvium .npc-ability > label { display:grid; gap:4px; min-width:0; color:#b9c7d3; font-size:.8rem; }
+.vitruvium .npc-ability input { min-width:0; width:100%; }
+.vitruvium .npc-ability-bonus { grid-template-columns:minmax(0,1fr) 54px auto; align-items:center; }
+.vitruvium .npc-ability-bonus > span { grid-column:1 / -1; }
+.vitruvium .npc-ability-bonus > small { color:#9fb0bf; }
+.vitruvium .npc-ability-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.vitruvium .npc-ability-actions button { white-space:nowrap; }
+.vitruvium .npc-ability-actions .npc-delete-ability { color:#e58a8a; background:#301b20; border-color:#6d3b42; }
+@media (max-width:720px) {
+  .vitruvium .npc-stats { grid-template-columns:minmax(0,1fr); }
+  .vitruvium .npc-ability { grid-template-columns:minmax(0,1fr) 90px; }
+  .vitruvium .npc-ability-actions { grid-column:1 / -1; }
+}
+.vitruvium.item .item-header { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
+.vitruvium.item .item-image-actions { display:flex; flex-wrap:wrap; gap:6px; min-width:0; }
+.vitruvium.item .item-header > .name { flex:1 1 180px; min-width:0; }

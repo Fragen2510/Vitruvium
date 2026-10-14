@@ -4,10 +4,11 @@
   "description": "Игровая система Vitruvium для Foundry VTT.",
   "version": "0.1.0",
   "compatibility": {
-    "minimum": "13",
-    "verified": "13.351"
+    "minimum": "14",
+    "verified": "14.369"
   },
   "authors": [{"name": "Vitruvium"}],
+  "languages": [{"lang": "ru", "name": "Русский", "path": "lang/ru.json"}],
   "url": "https://github.com/Fragen2510/Vitruvium",
   "manifest": "https://raw.githubusercontent.com/Fragen2510/Vitruvium/refs/heads/main/system.json",
   "download": "https://github.com/Fragen2510/Vitruvium/archive/refs/heads/main.zip",

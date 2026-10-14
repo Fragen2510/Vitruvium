@@ -1,5 +1,12 @@
 <section class="vitruvium-sheet item-sheet">
-  <header>{{#if itemHasImage}}<img class="profile" src="{{item.img}}" data-edit="img" alt="">{{else}}<button type="button" class="image-button" data-edit="img">Добавить фото</button>{{/if}}<input class="name" name="name" type="text" value="{{item.name}}"></header>
+  <header class="item-header">
+    {{#if itemHasImage}}<img class="profile" src="{{item.img}}" alt="">{{/if}}
+    {{#if isEditable}}<div class="item-image-actions">
+      <label class="image-button">{{#if itemHasImage}}Изменить фото{{else}}Добавить фото{{/if}}<input type="file" data-item-sheet-image accept=".png,.jpg,.jpeg,.gif,.webp"></label>
+      {{#if itemHasImage}}<button type="button" data-item-sheet-action="remove-image">Удалить фото</button>{{/if}}
+    </div>{{/if}}
+    <input class="name" name="name" type="text" value="{{item.name}}">
+  </header>
   <label>Описание<textarea name="system.description">{{system.description}}</textarea></label>
   {{#if hasValue}}<label>Уровень<input name="system.value" type="number" min="0" max="3" value="{{system.value}}"></label>{{/if}}
   {{#if isAspect}}

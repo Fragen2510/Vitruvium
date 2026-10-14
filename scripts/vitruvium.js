@@ -416,7 +416,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         try {
           const file = input.files?.[0];
           if (!file) return;
-          await this.actor.update({ img: await VitruviumActorSheet.#readImage(file) });
+          await this.actor.update({ img: await VitruviumActorSheet.uploadImage(file, "actor") });
           return this.render();
         } catch (error) {
           console.error("Vitruvium actor image update failed.", error);
@@ -606,35 +606,19 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
   static async #updateRelationshipImage(input) {
     const file = input.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    return new Promise((resolve, reject) => {
-      reader.onerror = () => reject(reader.error ?? new Error("Could not read the relationship image."));
-      reader.onload = async () => {
-        try {
-          const relationships = foundry.utils.deepClone(this.actor.system.relationships ?? []);
-          const relationship = relationships.find((entry) => entry.id === input.dataset.relationshipImage);
-          if (!relationship || typeof reader.result !== "string") throw new Error("Relationship or image data is unavailable.");
-          relationship.portrait = reader.result;
-          await this.actor.update({ "system.relationships": relationships });
-          this.render();
-          resolve();
-        } catch (error) {
-          reject(error);
-        }
-      };
-      try {
-        reader.readAsDataURL(file);
-      } catch (error) {
-        reject(error);
-      }
-    });
+    const relationships = foundry.utils.deepClone(this.actor.system.relationships ?? []);
+    const relationship = relationships.find((entry) => entry.id === input.dataset.relationshipImage);
+    if (!relationship) throw new Error("Relationship was not found.");
+    relationship.portrait = await VitruviumActorSheet.uploadImage(file, "relationship");
+    await this.actor.update({ "system.relationships": relationships });
+    return this.render();
   }
 
   static async #updateItemImage(input) {
     const file = input.files?.[0];
     const item = this.actor.items.get(input.dataset.itemImage);
     if (!file || !item) return;
-    const image = await VitruviumActorSheet.#readImage(file);
+    const image = await VitruviumActorSheet.uploadImage(file, "item");
     await item.update({ img: image });
     return this.render();
   }
@@ -652,22 +636,35 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     const resources = foundry.utils.deepClone(this.actor.system.resources ?? []);
     const resource = resources.find((entry, index) => (entry.id ?? `resource-${index}`) === input.dataset.resourceImage);
     if (!resource) throw new Error(`Resource ${input.dataset.resourceImage} was not found.`);
-    resource.img = await VitruviumActorSheet.#readImage(file);
+    resource.img = await VitruviumActorSheet.uploadImage(file, "resource");
     await this.actor.update({ "system.resources": resources });
     return this.render();
   }
 
-  static #readImage(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(reader.error ?? new Error("Could not read image."));
-      reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Image data is unavailable."));
+  static async uploadImage(file, category) {
+    const allowedExtensions = new Set(["gif", "jpeg", "jpg", "png", "webp"]);
+    const mimeExtensions = { "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp" };
+    const sourceExtension = file.name.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+    const extension = allowedExtensions.has(sourceExtension) ? sourceExtension : mimeExtensions[file.type];
+    if (!extension) throw new Error("Unsupported image format.");
+    const filename = `vitruvium-${category}-${foundry.utils.randomID()}.${extension}`;
+    const uploadFile = new File([file], filename, { type: file.type || `image/${extension}` });
+    const directory = `worlds/${game.world.id}/vitruvium`;
+    try {
+      await foundry.applications.apps.FilePicker.createDirectory("data", directory);
+    } catch (error) {
       try {
-        reader.readAsDataURL(file);
-      } catch (error) {
-        reject(error);
+        await foundry.applications.apps.FilePicker.browse("data", directory);
+      } catch {
+        throw error;
       }
-    });
+    }
+    const response = await foundry.applications.apps.FilePicker.upload(
+      "data", directory, uploadFile, {}, { notify: false }
+    );
+    const path = typeof response === "string" ? response : response?.path ?? response?.url;
+    if (typeof path !== "string" || !path) throw new Error("The image upload did not return a file path.");
+    return path;
   }
 
   static async #addResource() {
@@ -737,6 +734,110 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
   }
 }
 
+class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2) {
+  static DEFAULT_OPTIONS = {
+    classes: ["vitruvium", "sheet", "actor", "npc"],
+    position: { width: 720, height: 620 },
+    form: { closeOnSubmit: false, submitOnChange: false }
+  };
+  static PARTS = { main: { template: "systems/vitruvium/templates/npc-sheet.hbs" } };
+  get actor() { return this.object ?? this.document; }
+  get title() { return this.actor.name; }
+
+  async _prepareContext(options) {
+    const context = await super._prepareContext(options);
+    const npc = this.actor.system.npc ?? {};
+    return {
+      ...context,
+      actor: this.actor,
+      npc: {
+        attackDice: clamp(npc.attackDice ?? 3, 1, 99),
+        defenseDice: clamp(npc.defenseDice ?? 2, 1, 99),
+        block: clamp(npc.block ?? 0, 0, 99),
+        abilities: Array.isArray(npc.abilities) ? npc.abilities : []
+      }
+    };
+  }
+
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+    this.element.querySelectorAll("[data-npc-stat]").forEach((field) => {
+      field.addEventListener("change", async () => {
+        const key = field.dataset.npcStat;
+        const minimum = key === "block" ? 0 : 1;
+        const value = clamp(field.value, minimum, 99);
+        field.value = String(value);
+        try {
+          await this.actor.update({ [`system.npc.${key}`]: value });
+        } catch (error) {
+          console.error("Vitruvium NPC stat update failed.", error);
+          ui.notifications.error("Не удалось сохранить параметры НПС.");
+        }
+      });
+    });
+    this.element.querySelectorAll("[data-npc-ability-field]").forEach((field) => {
+      field.addEventListener("change", async () => {
+        const abilities = foundry.utils.deepClone(this.actor.system.npc?.abilities ?? []);
+        const ability = abilities.find((entry) => entry.id === field.dataset.abilityId);
+        if (!ability) return;
+        ability[field.dataset.npcAbilityField] = field.dataset.npcAbilityField === "bonusDice"
+          ? clamp(field.value, 0, 99)
+          : field.value.trim() || "Способность";
+        try {
+          await this.actor.update({ "system.npc.abilities": abilities });
+        } catch (error) {
+          console.error("Vitruvium NPC ability update failed.", error);
+          ui.notifications.error("Не удалось сохранить способность НПС.");
+        }
+      });
+    });
+    this.element.querySelectorAll("[data-npc-action]").forEach((button) => {
+      button.addEventListener("click", async (event) => {
+        event.preventDefault();
+        try {
+          if (button.dataset.npcAction === "add-ability") return await this.#addAbility();
+          if (button.dataset.npcAction === "delete-ability") return await this.#deleteAbility(button.dataset.abilityId);
+          if (button.dataset.npcAction === "roll") return await this.#roll(button);
+        } catch (error) {
+          console.error("Vitruvium NPC action failed.", error);
+          ui.notifications.error("Не удалось выполнить действие НПС.");
+        }
+      });
+    });
+  }
+
+  async #addAbility() {
+    const abilities = foundry.utils.deepClone(this.actor.system.npc?.abilities ?? []);
+    abilities.push({ id: foundry.utils.randomID(), name: "Новая способность", bonusDice: 0 });
+    await this.actor.update({ "system.npc.abilities": abilities });
+    return this.render();
+  }
+
+  async #deleteAbility(id) {
+    const abilities = (this.actor.system.npc?.abilities ?? []).filter((ability) => ability.id !== id);
+    await this.actor.update({ "system.npc.abilities": abilities });
+    return this.render();
+  }
+
+  async #roll(button) {
+    const target = button.dataset.target;
+    if (!["attack", "defense"].includes(target)) return;
+    const npc = this.actor.system.npc ?? {};
+    const ability = npc.abilities?.find((entry) => entry.id === button.dataset.abilityId);
+    const baseDice = clamp(target === "attack" ? npc.attackDice ?? 3 : npc.defenseDice ?? 2, 1, 99);
+    const bonusDice = ability ? clamp(ability.bonusDice, 0, 99) : 0;
+    const dice = baseDice + bonusDice;
+    const roll = await (new Roll(`${dice}d6`)).evaluate();
+    if (diceSoNiceModelRegistered) roll.options.appearance = { system: SYSTEM_ID };
+    const results = roll.dice[0].results.map((result) => dieSuccess(result.result));
+    const successes = results.reduce((total, result) => total + result, 0);
+    const label = target === "attack" ? "Атака" : "Защита";
+    const abilityLabel = ability ? `Способность: ${escapeHtml(ability.name)}` : "Базовый бросок";
+    const content = `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>${label} НПС</h3><span class="roll-character">${escapeHtml(this.actor.name)}</span></div></header><div class="roll-summary"><span><small>${abilityLabel}</small><b>${baseDice}+${bonusDice}=${dice}d6</b></span></div><ol><li class="chosen"><span>Кубики</span><span class="roll-values">${results.map((result) => `${result} ${successLabel(result)}`).join(", ")}</span><b>${successes} ${successLabel(successes)}</b></li></ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer></section>`;
+    return ChatMessage.create({ content, speaker: ChatMessage.getSpeaker({ actor: this.actor }), rolls: [roll] });
+  }
+}
+
 class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ItemSheetV2) {
   static DEFAULT_OPTIONS = { classes: ["vitruvium", "sheet", "item"], position: { width: 620, height: 560 }, form: { closeOnSubmit: false, submitOnChange: true } };
   static PARTS = { main: { template: "systems/vitruvium/templates/item-sheet.hbs" } };
@@ -746,11 +847,32 @@ class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationM
     const mayEditAspect = game.user.isGM || game.user.role >= CONST.USER_ROLES.ASSISTANT;
     return super.isEditable && (this.item.type !== "aspect" || mayEditAspect);
   }
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+    this.element.querySelector("[data-item-sheet-image]")?.addEventListener("change", async (event) => {
+      try {
+        const file = event.currentTarget.files?.[0];
+        if (!file || !this.isEditable) return;
+        await this.item.update({ img: await VitruviumActorSheet.uploadImage(file, "item") });
+        return this.render();
+      } catch (error) {
+        console.error("Vitruvium standalone item image upload failed.", error);
+        ui.notifications.error("Не удалось загрузить изображение предмета.");
+      }
+    });
+    this.element.querySelector("[data-item-sheet-action='remove-image']")?.addEventListener("click", async (event) => {
+      event.preventDefault();
+      if (!this.isEditable) return;
+      await this.item.update({ img: "icons/svg/item-bag.svg" });
+      return this.render();
+    });
+  }
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     return {
       ...context, item: this.item, system: this.item.system,
       itemHasImage: hasCustomImage(this.item.img),
+      isEditable: this.isEditable,
       hasValue: ["domain", "aspect"].includes(this.item.type), isAspect: this.item.type === "aspect",
       canEditAspect: game.user.isGM || game.user.role >= CONST.USER_ROLES.ASSISTANT
     };
@@ -810,11 +932,22 @@ Hooks.once("init", () => {
   registerSettings();
   CONFIG.VITRUVIUM = { characteristics: CHARACTERISTICS };
   const SheetConfig = foundry.applications.apps.DocumentSheetConfig;
-  SheetConfig.registerSheet(Actor, SYSTEM_ID, VitruviumActorSheet, { makeDefault: true });
+  SheetConfig.registerSheet(Actor, SYSTEM_ID, VitruviumActorSheet, { types: ["character"], makeDefault: true });
+  SheetConfig.registerSheet(Actor, SYSTEM_ID, VitruviumNpcSheet, { types: ["npc"], makeDefault: true });
   SheetConfig.registerSheet(Item, SYSTEM_ID, VitruviumItemSheet, { makeDefault: true });
 });
 
 Hooks.on("preCreateActor", (actor) => {
+  if (actor.type === "npc") {
+    const npc = actor.system?.npc ?? {};
+    actor.updateSource({ system: { npc: {
+      attackDice: npc.attackDice ?? 3,
+      defenseDice: npc.defenseDice ?? 2,
+      block: npc.block ?? 0,
+      abilities: npc.abilities ?? []
+    } } });
+    return;
+  }
   if (actor.type !== "character") return;
   const characteristics = Object.fromEntries(Object.keys(CHARACTERISTICS).map((key) => [key, { value: 1 }]));
   actor.updateSource({ system: { characteristics, inspiration: 0, relationships: [], resources: [] } });

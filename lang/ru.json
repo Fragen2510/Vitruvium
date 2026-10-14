@@ -1,0 +1,16 @@
+{
+  "TYPES": {
+    "Actor": {
+      "character": "Персонаж",
+      "npc": "НПС"
+    },
+    "Item": {
+      "domain": "Домен",
+      "ability": "Способность",
+      "attribute": "Атрибут",
+      "possession": "Имущество",
+      "status": "Статус",
+      "aspect": "Аспект"
+    }
+  }
+}
