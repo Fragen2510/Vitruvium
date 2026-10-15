@@ -14,7 +14,7 @@ const CHARACTERISTIC_KEYS = new Set(Object.keys(CHARACTERISTICS));
 const MAX_ADVANTAGE_HINDRANCE = 2;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
-const getBonusDieCount = ({ net, bonusDieMode }) => bonusDieMode && net ? Math.abs(net) : 1;
+const getBonusDieCount = ({ net, bonusDieMode }) => bonusDieMode && net ? 1 + Math.abs(net) : 1;
 const selectBonusDieResult = (results, net, bonusDieMode) => {
   const selectedIndex = results.reduce((selected, result, index) => {
     if (net > 0 && result > results[selected]) return index;
@@ -104,10 +104,11 @@ function renderRollCard(data) {
   const domainOptions = data.domains.length
     ? data.domains.map((domain) => `<option value="${escapeHtml(domain.id)}">${escapeHtml(domain.name)} (уровень ${domain.level}, +${domain.level})</option>`).join("")
     : `<option value="">Нет доменов</option>`;
+  const bonusDieCount = getBonusDieCount(data);
   const bonusDieHint = data.bonusDieMode && data.net > 0
-    ? `1 вдохновение: бросить ${data.net}d6 и добавить лучший результат`
+    ? `1 вдохновение: бросить ${bonusDieCount}d6 и добавить лучший результат`
     : data.bonusDieMode && data.net < 0
-      ? `1 вдохновение: бросить ${Math.abs(data.net)}d6 и добавить худший результат`
+      ? `1 вдохновение: бросить ${bonusDieCount}d6 и добавить худший результат`
       : "1 вдохновение: бросить 1d6 и добавить успехи";
   const dieAction = `<div class="roll-action-group"><button type="button" data-vitruvium-roll-action="add-die">Добавить кубик</button><small>${bonusDieHint}</small></div>`;
   const domainAction = `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи</button><small>1 вдохновение добавляет успехи по уровню домена</small></label>`;
