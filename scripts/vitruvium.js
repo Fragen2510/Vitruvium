@@ -1,6 +1,8 @@
 const SYSTEM_ID = "vitruvium";
-const DICE_SO_NICE_MODEL = `systems/${SYSTEM_ID}/assets/dice/vitruvium-d6.glb`;
-let diceSoNiceModelRegistered = false;
+const VITRUVIUM_DIE_DENOMINATION = "v";
+const VITRUVIUM_DIE_FORMULA = `d${VITRUVIUM_DIE_DENOMINATION}`;
+const VITRUVIUM_DIE_LABEL = "dV";
+const DICE_SO_NICE_MODEL_DIRECTORY = `systems/${SYSTEM_ID}/assets/dice`;
 
 const CHARACTERISTICS = {
   physique: { label: "Телосложение" },
@@ -43,6 +45,19 @@ const hasCustomImage = (image) => {
   return Boolean(path) && !["icons/svg/mystery-man.svg", "icons/svg/item-bag.svg"].some((placeholder) => path.endsWith(placeholder));
 };
 const dieSuccess = (face) => (face === 6 ? 2 : face >= 4 ? 1 : 0);
+class VitruviumDie extends Die {
+  constructor(termData) {
+    termData.faces = 6;
+    super(termData);
+  }
+
+  static DENOMINATION = VITRUVIUM_DIE_DENOMINATION;
+
+  getResultLabel(result) {
+    return String(dieSuccess(result.result));
+  }
+}
+
 const getStatusCharacteristicModifiers = (actor, key) => {
   const effects = actor.items
     .filter((item) => item.type === "status" && item.system.active !== false)
@@ -87,28 +102,69 @@ function escapeHtml(value) {
 async function registerDiceSoNiceModel(dice3d) {
   if (!dice3d?.addSystem || !dice3d?.addDicePreset) return;
   try {
-    const modelUrl = foundry.utils.getRoute(DICE_SO_NICE_MODEL);
-    const response = await fetch(modelUrl);
-    if (!response.ok) {
-      console.warn(`Vitruvium Dice So Nice model is unavailable (${response.status}); using the default d6.`);
-      return;
+    let directory;
+    try {
+      directory = await foundry.applications.apps.FilePicker.browse("data", DICE_SO_NICE_MODEL_DIRECTORY);
+    } catch (error) {
+      console.warn("Vitruvium could not list its Dice So Nice model directory; checking the default model only.", error);
+      directory = { files: [] };
     }
-    const buffer = await response.arrayBuffer();
-    if (!isValidDiceSoNiceModel(buffer)) {
-      console.warn("Vitruvium Dice So Nice model is invalid or contains no mesh; using the default d6.");
-      return;
+    const modelFiles = [...new Set((directory.files ?? [])
+      .filter((file) => /\.glb$/i.test(file))
+      .concat(`${DICE_SO_NICE_MODEL_DIRECTORY}/vitruvium-d6.glb`))].sort();
+    const { DiceSystem } = await import("/modules/dice-so-nice/api.js");
+    let registeredModels = 0;
+
+    for (const modelFile of modelFiles) {
+      try {
+        const response = await fetch(foundry.utils.getRoute(modelFile));
+        if (!response.ok) {
+          console.warn(`Vitruvium Dice So Nice model "${modelFile}" is unavailable (${response.status}).`);
+          continue;
+        }
+        const buffer = await response.arrayBuffer();
+        if (!isValidDiceSoNiceModel(buffer)) {
+          console.warn(`Vitruvium Dice So Nice model "${modelFile}" is invalid or contains no mesh.`);
+          continue;
+        }
+
+        const filename = modelFile.split("/").pop().replace(/\.glb$/i, "");
+        const systemId = `${SYSTEM_ID}-${hashDiceModelPath(modelFile)}`;
+        const system = new DiceSystem(systemId, filename.replace(/[_-]+/g, " "), "default", "Vitruvium");
+        dice3d.addSystem(system);
+        dice3d.addDicePreset({ type: VITRUVIUM_DIE_FORMULA, modelFile, system: systemId });
+        registeredModels += 1;
+        try {
+          await dice3d.preloadPresets?.(systemId);
+        } catch (error) {
+          console.warn(`Vitruvium could not preload Dice So Nice model "${modelFile}".`, error);
+        }
+      } catch (error) {
+        console.warn(`Vitruvium could not register Dice So Nice model "${modelFile}".`, error);
+      }
     }
 
-    const { DiceSystem } = await import("/modules/dice-so-nice/api.js");
-    const system = new DiceSystem(SYSTEM_ID, "Vitruvium", "default", "Vitruvium");
-    system.setRoleDefaults("basic");
-    dice3d.addSystem(system);
-    dice3d.addDicePreset({ type: "d6", modelFile: DICE_SO_NICE_MODEL, system: SYSTEM_ID });
-    await dice3d.preloadPresets?.(SYSTEM_ID);
-    diceSoNiceModelRegistered = true;
+    if (!registeredModels) {
+      const fallbackId = `${SYSTEM_ID}-default`;
+      const fallbackSystem = new DiceSystem(fallbackId, "Vitruvium (стандартный кубик)", "default", "Vitruvium");
+      dice3d.addSystem(fallbackSystem);
+      dice3d.addDicePreset({
+        type: VITRUVIUM_DIE_FORMULA,
+        labels: ["0", "0", "0", "1", "1", "2"],
+        system: fallbackId
+      });
+    }
   } catch (error) {
-    console.warn("Vitruvium could not register its Dice So Nice d6 model.", error);
+    console.warn("Vitruvium could not register its Dice So Nice dV models.", error);
   }
+}
+
+function hashDiceModelPath(path) {
+  let hash = 2166136261;
+  for (const character of path.toLowerCase()) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 function isValidDiceSoNiceModel(buffer) {
@@ -138,10 +194,10 @@ function renderRollCard(data) {
     return `<li${index === data.chosenIndex ? " class=\"chosen\"" : ""}><span>Бросок ${index + 1}</span><span class="roll-values">${results}</span><b>${pool.successes} ${successLabel(pool.successes)}</b></li>`;
   }).join("");
   const bonusDice = data.bonusDice.map((bonus) => {
-    if (typeof bonus === "number") return `<li class="bonus-roll"><span>Дополнительный d6: ${bonus} ${successLabel(bonus)}</span><b>+${bonus} ${successLabel(bonus)}</b></li>`;
+    if (typeof bonus === "number") return `<li class="bonus-roll"><span>Дополнительный ${VITRUVIUM_DIE_LABEL}: ${bonus} ${successLabel(bonus)}</span><b>+${bonus} ${successLabel(bonus)}</b></li>`;
     const label = bonus.mode === "best" ? "лучший" : bonus.mode === "worst" ? "худший" : "результат";
     const results = bonus.results.map((result, index) => `${index === bonus.selectedIndex ? "[" : ""}${result} ${successLabel(result)}${index === bonus.selectedIndex ? "]" : ""}`).join(", ");
-    return `<li class="bonus-roll"><span>Дополнительный бросок (${label} из ${bonus.results.length}d6): ${results}</span><b>+${bonus.successes} ${successLabel(bonus.successes)}</b></li>`;
+    return `<li class="bonus-roll"><span>Дополнительный бросок (${label} из ${bonus.results.length}${VITRUVIUM_DIE_LABEL}): ${results}</span><b>+${bonus.successes} ${successLabel(bonus.successes)}</b></li>`;
   }).join("");
   const domainBonuses = data.domainSuccesses.map((result) => `<li class="bonus-roll"><span>${escapeHtml(result.name)} (уровень ${result.level})</span><b>+${result.successes} ${successLabel(result.successes)}</b></li>`).join("");
   const totalInspirationSpent = data.inspirationSpent + data.bonusDice.length + data.domainSuccesses.length;
@@ -151,10 +207,10 @@ function renderRollCard(data) {
     : `<option value="">Нет доменов</option>`;
   const bonusDieCount = getBonusDieCount(data);
   const bonusDieHint = data.bonusDieMode && data.net > 0
-    ? `1 вдохновение: бросить ${bonusDieCount}d6 и добавить лучший результат`
+    ? `1 вдохновение: бросить ${bonusDieCount}${VITRUVIUM_DIE_LABEL} и добавить лучший результат`
     : data.bonusDieMode && data.net < 0
-      ? `1 вдохновение: бросить ${bonusDieCount}d6 и добавить худший результат`
-      : "1 вдохновение: бросить 1d6 и добавить успехи";
+      ? `1 вдохновение: бросить ${bonusDieCount}${VITRUVIUM_DIE_LABEL} и добавить худший результат`
+      : `1 вдохновение: бросить 1${VITRUVIUM_DIE_LABEL} и добавить успехи`;
   const dieAction = `<div class="roll-action-group"><button type="button" data-vitruvium-roll-action="add-die">Добавить кубик</button><small>${bonusDieHint}</small></div>`;
   const domainAction = `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи</button><small>1 вдохновение добавляет успехи по уровню домена</small></label>`;
   const actions = `<div class="roll-actions">${dieAction}${domainAction}</div>`;
@@ -165,10 +221,10 @@ function renderRollCard(data) {
   if (data.statusHindrance) modifiers.push(`помеха +${data.statusHindrance} от статусов`);
   const modifierLabel = modifiers.length ? ` (${modifiers.join("; ")})` : "";
   const characteristic = data.characteristic ? `<span><small>Характеристика</small><b>${escapeHtml(data.characteristic + modifierLabel)}</b></span>` : "";
-  return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary">${characteristic}<span><small>Пул</small><b>${data.baseDice}+${data.inspirationSpent}=${data.poolDice}d6</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
+  return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary">${characteristic}<span><small>Пул</small><b>${data.baseDice}+${data.inspirationSpent}=${data.poolDice}${VITRUVIUM_DIE_LABEL}</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
 }
 
-/** Roll a special d6 pool. Each die yields 0, 1 or 2 successes. */
+/** Roll a special Vitruvium die pool. Each die yields 0, 1 or 2 successes. */
 async function rollPool({ dice, advantage = 0, hindrance = 0, statusAdvantage = 0, statusHindrance = 0, inspiration = 0, speaker, actor, characteristic, characteristicModifier = 0 }) {
   const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
   const count = clamp(dice, 1, maxDice);
@@ -183,8 +239,7 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, statusAdvantage = 
   const pools = [];
 
   for (let i = 0; i < attempts; i += 1) {
-    const roll = await (new Roll(`${poolSize}d6`)).evaluate();
-    if (diceSoNiceModelRegistered) roll.options.appearance = { system: SYSTEM_ID };
+    const roll = await (new Roll(`${poolSize}${VITRUVIUM_DIE_FORMULA}`)).evaluate();
     const faces = roll.dice[0].results.map((result) => result.result);
     const results = faces.map(dieSuccess);
     pools.push({ roll, results, successes: results.reduce((total, result) => total + result, 0) });
@@ -255,8 +310,7 @@ async function handleRollAction(event) {
     let domainBonus = null;
     if (action === "add-die") {
       const bonusDieCount = getBonusDieCount(data);
-      bonusRoll = await (new Roll(`${bonusDieCount}d6`)).evaluate();
-      if (diceSoNiceModelRegistered) bonusRoll.options.appearance = { system: SYSTEM_ID };
+      bonusRoll = await (new Roll(`${bonusDieCount}${VITRUVIUM_DIE_FORMULA}`)).evaluate();
       const results = bonusRoll.dice[0].results.map((result) => dieSuccess(result.result));
       bonusDieResult = selectBonusDieResult(results, data.net, data.bonusDieMode);
       bonusDieSuccesses = bonusDieResult.successes;
@@ -346,7 +400,7 @@ function renderChatTray(html) {
     </div>
     <div class="tray-counter">
       <div class="tray-counter-heading"><span>Вдохновение</span><small>Доступно: <b data-tray-available>0</b></small></div>
-      <small class="tray-counter-note">1 очко = +1d6</small>
+      <small class="tray-counter-note">1 очко = +1${VITRUVIUM_DIE_LABEL}</small>
       <button type="button" data-tray-action="change" data-key="inspiration" data-delta="-1" aria-label="Уменьшить трату вдохновения">−</button>
       <b data-tray-value="inspiration">${trayState.inspiration}</b>
       <button type="button" data-tray-action="change" data-key="inspiration" data-delta="1" aria-label="Добавить вдохновение к броску">+</button>
@@ -1336,8 +1390,7 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
     const net = statusModifiers.advantage - statusModifiers.hindrance;
     const pools = [];
     for (let index = 0; index < Math.abs(net) + 1; index += 1) {
-      const roll = await (new Roll(`${dice}d6`)).evaluate();
-      if (diceSoNiceModelRegistered) roll.options.appearance = { system: SYSTEM_ID };
+      const roll = await (new Roll(`${dice}${VITRUVIUM_DIE_FORMULA}`)).evaluate();
       const results = (roll.dice[0]?.results ?? []).map((result) => dieSuccess(result.result));
       pools.push({ roll, results, successes: results.reduce((total, result) => total + result, 0) });
     }
@@ -1351,7 +1404,7 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
     const abilityLabel = ability ? `Способность: ${escapeHtml(ability.name)}` : "Базовый бросок";
     const statusLabel = statusModifiers.dice ? ` ${statusModifiers.dice > 0 ? "+" : "−"}${Math.abs(statusModifiers.dice)} от статусов` : "";
     const poolRows = pools.map((pool, index) => `<li${pool === chosen ? " class=\"chosen\"" : ""}><span>Бросок ${index + 1}</span><span class="roll-values">${pool.results.map((result) => `${result} ${successLabel(result)}`).join(", ") || "Нет кубиков"}</span><b>${pool.successes} ${successLabel(pool.successes)}</b></li>`).join("");
-    const content = `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>${label} НПС</h3><span class="roll-character">${escapeHtml(this.actor.name)}</span></div><span class="roll-mode">${mode}</span></header><div class="roll-summary"><span><small>${abilityLabel}</small><b>${baseDice}+${bonusDice}${statusLabel}=${dice}d6</b></span></div><ol>${poolRows}</ol><footer><span>Итог</span><strong>${chosen.successes} ${successLabel(chosen.successes)}</strong></footer></section>`;
+    const content = `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>${label} НПС</h3><span class="roll-character">${escapeHtml(this.actor.name)}</span></div><span class="roll-mode">${mode}</span></header><div class="roll-summary"><span><small>${abilityLabel}</small><b>${baseDice}+${bonusDice}${statusLabel}=${dice}${VITRUVIUM_DIE_LABEL}</b></span></div><ol>${poolRows}</ol><footer><span>Итог</span><strong>${chosen.successes} ${successLabel(chosen.successes)}</strong></footer></section>`;
     return ChatMessage.create({ content, speaker: ChatMessage.getSpeaker({ actor: this.actor }), rolls: pools.map((pool) => pool.roll) });
   }
 }
@@ -1432,7 +1485,7 @@ function registerSettings() {
   }
   game.settings.register(SYSTEM_ID, "bonusDieUsesAdvantage", {
     name: "Дополнительный кубик учитывает преимущество и помеху",
-    hint: "Если включено, действие за вдохновение бросает столько дополнительных d6, сколько осталось преимущества или помехи после взаимной компенсации, и прибавляет лучший или худший результат соответственно. Если выключено, бросается один дополнительный d6.",
+    hint: `Если включено, действие за вдохновение бросает столько дополнительных ${VITRUVIUM_DIE_LABEL}, сколько осталось преимущества или помехи после взаимной компенсации, и прибавляет лучший или худший результат соответственно. Если выключено, бросается один дополнительный ${VITRUVIUM_DIE_LABEL}.`,
     scope: "world",
     config: true,
     type: Boolean,
@@ -1457,6 +1510,7 @@ async function normalizeActorLimits() {
 
 Hooks.once("init", () => {
   registerSettings();
+  CONFIG.Dice.terms[VITRUVIUM_DIE_DENOMINATION] = VitruviumDie;
   CONFIG.VITRUVIUM = { characteristics: CHARACTERISTICS };
   const SheetConfig = foundry.applications.apps.DocumentSheetConfig;
   SheetConfig.registerSheet(Actor, SYSTEM_ID, VitruviumActorSheet, { types: ["character"], makeDefault: true });

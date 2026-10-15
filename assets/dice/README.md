@@ -1,14 +1,14 @@
-# Vitruvium d6 model asset
+# Vitruvium dV model assets
 
 The optional Dice So Nice integration looks for this file:
 
 `systems/vitruvium/assets/dice/vitruvium-d6.glb`
 
-Place the finished model at that path; the system registers it only if it is a valid GLB 2.0 file containing a mesh. If the file is missing or invalid, Dice So Nice uses its default d6.
+Place one or more finished `.glb` models directly in this directory. Every valid GLB 2.0 model containing a mesh is registered as a separate selectable appearance for the Vitruvium `dV` die in Dice So Nice!; the filename is used as the appearance name. `.blend` source files are ignored by Foundry and Dice So Nice!. If no valid model is found, a default six-face Vitruvium preset is registered.
 
 ## Model requirements
 
-- Export one low-poly d6 as a single `.glb` using glTF 2.0.
+- Export one low-poly six-sided die as a single `.glb` using glTF 2.0.
 - Keep the standard d6 silhouette, scale, origin, and orientation. Use the Dice So Nice d6 model as the alignment reference so its standard collision shape remains correct.
 - Preserve standard opposing faces: 1 opposite 6, 2 opposite 5, and 3 opposite 4.
 - Put the Vitruvium success result on each face: faces 1, 2, and 3 show `0`; faces 4 and 5 show `1`; face 6 shows `2`.
