@@ -81,6 +81,7 @@
 .vitruvium .stat-strip { grid-template-columns:repeat(6, minmax(0, 1fr)); gap:5px; padding:0; background:transparent; }
 .vitruvium .stat-strip .characteristic-card { min-width:0; padding:5px 2px; border:1px solid #303b46; border-radius:7px; background:#202832; }
 .vitruvium .characteristic-card span { font-size:.68rem; }
+.vitruvium .characteristic-card .characteristic-total { color:#aebdca; font-size:.65rem; line-height:1.25; }
 .vitruvium .left-column, .vitruvium .main-column { max-height:none; min-height:0; overflow:visible; padding-right:0; }
 .vitruvium .inspiration-panel { padding:10px 14px; }
 .vitruvium .inspiration-panel > header { margin-bottom:6px; }
@@ -152,14 +153,15 @@
 .vitruvium .status-active-toggle input { width:16px; min-height:16px; margin:0; accent-color:#f0a84a; }
 .vitruvium .status-effects { display:grid; gap:7px; min-width:0; padding:9px; border:1px solid #354653; border-radius:7px; background:#1c2731; }
 .vitruvium .status-effects > b { color:#dce6ef; font-size:.84rem; }
-.vitruvium .status-effect { display:grid; grid-template-columns:minmax(0,1fr) minmax(100px,.5fr) auto; align-items:end; gap:7px; min-width:0; padding:7px; border:1px solid #354653; border-radius:6px; background:#232d38; }
-.vitruvium .status-effect label { display:grid; gap:4px; min-width:0; color:#b9c7d3; font-size:.78rem; }
-.vitruvium .status-effect select, .vitruvium .status-effect input { width:100%; min-width:0; min-height:34px; padding:6px 8px; border:1px solid #465767; border-radius:7px; background:#111820; color:#edf3f8; font:inherit; }
-.vitruvium .status-effect button { min-width:0; }
+.vitruvium .status-effect { display:grid; grid-template-columns:minmax(0,1fr); gap:7px; min-width:0; padding:7px; border:1px solid #354653; border-radius:6px; background:#232d38; }
+.vitruvium .status-effect label { display:grid; gap:4px; min-width:0; color:#b9c7d3; font-size:.78rem; overflow-wrap:anywhere; }
+.vitruvium .status-effect select, .vitruvium .status-effect input { box-sizing:border-box; width:100%; min-width:0; min-height:34px; padding:6px 8px; border:1px solid #465767; border-radius:7px; background:#111820; color:#edf3f8; font:inherit; }
+.vitruvium .status-effect button { justify-self:start; min-width:0; white-space:nowrap; }
 .vitruvium .status-state { color:#9fb0bf; font-size:.78rem; }
-@media (max-width:560px) {
-  .vitruvium .status-effect { grid-template-columns:minmax(0,1fr); }
-}
+.vitruvium .status-effect-details { flex:1 0 100%; min-width:0; color:#b9c7d3; font-size:.82rem; }
+.vitruvium .status-effect-details > summary { width:fit-content; color:#dce6ef; cursor:pointer; }
+.vitruvium .status-effect-details > ul { display:grid; gap:4px; margin:7px 0 0; padding-left:22px; }
+.vitruvium .status-effect-details li { overflow-wrap:anywhere; }
 .vitruvium .form-actions {
   display:flex; grid-column:1 / -1; flex:0 0 100%; flex-wrap:wrap;
   align-items:center; justify-content:flex-start; gap:6px; width:100%; min-width:0; margin-top:5px;

@@ -33,10 +33,11 @@
                 <button type="button" data-vitruvium-action="adjust-characteristic" data-characteristic="{{key}}" data-delta="1" aria-label="Увеличить {{characteristic.label}}">+</button>
               </div>
             {{else}}
-              <button type="button" class="characteristic-roll" data-vitruvium-action="roll-characteristic" data-characteristic="{{key}}" aria-label="Бросить {{characteristic.label}}: {{lookup (lookup ../system.characteristics key) "value"}} куб.">
+              <button type="button" class="characteristic-roll" data-vitruvium-action="roll-characteristic" data-characteristic="{{key}}" aria-label="Бросить {{characteristic.label}}: {{characteristic.total}} куб.">
                 <b>{{lookup (lookup ../system.characteristics key) "value"}}</b>
               </button>
             {{/if}}
+            <small class="characteristic-total">{{#if characteristic.modifier}}({{characteristic.modifierText}} от статусов) · {{/if}}Итого: {{characteristic.total}} куб.</small>
           </div>
         {{/each}}
       </div>
@@ -90,6 +91,12 @@
                   {{#if ../editing.statuses}}<div class="form-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>{{/if}}
                 </div>
                 {{#if system.description}}<details class="description-details"><summary>Описание</summary><p>{{system.description}}</p></details>{{/if}}
+                {{#if hasEffects}}
+                  <details class="status-effect-details">
+                    <summary>Эффекты ({{system.effects.length}})</summary>
+                    <ul>{{#each system.effects}}<li><b>{{modifierText}}</b> куб. — {{characteristicLabel}}</li>{{/each}}</ul>
+                  </details>
+                {{/if}}
               {{/if}}
             </article>
           {{else}}<p class="empty">Статусы не добавлены.</p>{{/each}}

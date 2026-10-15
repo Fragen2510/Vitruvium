@@ -371,22 +371,39 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     const itemsOfType = (type) => this.actor.items.filter((item) => item.type === type).map((item) => ({
       id: item.id, name: item.name, img: item.img, hasImage: hasCustomImage(item.img), system: item.system
     }));
-    const statuses = this.actor.items.filter((item) => item.type === "status").map((item) => ({
-      id: item.id,
-      name: item.name,
-      img: item.img,
-      hasImage: hasCustomImage(item.img),
-      system: {
-        ...item.system,
-        active: item.system.active !== false,
-        effects: (Array.isArray(item.system.effects) ? item.system.effects : []).map((effect, index) => ({
+    const statuses = this.actor.items.filter((item) => item.type === "status").map((item) => {
+      const effects = (Array.isArray(item.system.effects) ? item.system.effects : []).map((effect, index) => {
+        const modifier = Number.isFinite(Number(effect.modifier)) ? Number(effect.modifier) : 0;
+        return {
           ...effect,
           id: effect.id ?? `status-effect-${index}`,
+          modifier,
+          modifierText: modifier > 0 ? `+${modifier}` : String(modifier),
+          characteristicLabel: CHARACTERISTICS[effect.characteristic]?.label ?? "Характеристика",
           characteristicOptions: Object.entries(CHARACTERISTICS).map(([key, characteristic]) => ({
             key, label: characteristic.label, selected: effect.characteristic === key
           }))
-        }))
-      }
+        };
+      });
+      return {
+        id: item.id,
+        name: item.name,
+        img: item.img,
+        hasImage: hasCustomImage(item.img),
+        hasEffects: effects.length > 0,
+        system: { ...item.system, active: item.system.active !== false, effects }
+      };
+    });
+    const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
+    const characteristics = Object.fromEntries(Object.entries(CHARACTERISTICS).map(([key, characteristic]) => {
+      const value = Number(this.actor.system.characteristics?.[key]?.value ?? 1);
+      const modifier = getStatusCharacteristicModifier(this.actor, key);
+      return [key, {
+        ...characteristic,
+        modifier,
+        modifierText: modifier > 0 ? `+${modifier}` : String(modifier),
+        total: clamp(value + modifier, 1, maxDice)
+      }];
     }));
     const domains = this.actor.items.filter((item) => item.type === "domain").map((domain) => ({
       id: domain.id, name: domain.name, img: domain.img, hasImage: hasCustomImage(domain.img), system: domain.system,
@@ -396,7 +413,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     }));
     const tokenizer = game.modules.get("vtta-tokenizer");
     return {
-      ...context, actor: this.actor, system: this.actor.system, characteristics: CHARACTERISTICS,
+      ...context, actor: this.actor, system: this.actor.system, characteristics,
       actorHasImage: hasCustomImage(this.actor.img),
       tokenizerAvailable: Boolean(tokenizer?.active && (tokenizer.api?.launch || globalThis.Tokenizer?.launch)),
       editingName: this.editingName,
