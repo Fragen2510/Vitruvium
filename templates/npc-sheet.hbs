@@ -5,19 +5,15 @@
   <section class="npc-stats">
     <label class="npc-stat">
       <span>Атака</span>
-      <input type="number" min="1" max="99" data-npc-stat="attackDice" value="{{npc.attackDice}}" aria-label="Базовые кубики атаки">
+      <input type="number" min="0" max="99" data-npc-stat="attackDice" value="{{npc.attackDice}}" aria-label="Базовые кубики атаки">
       <small>d6</small>
       <button type="button" data-npc-action="roll" data-target="attack">Бросить атаку</button>
     </label>
     <label class="npc-stat">
       <span>Защита</span>
-      <input type="number" min="1" max="99" data-npc-stat="defenseDice" value="{{npc.defenseDice}}" aria-label="Базовые кубики защиты">
+      <input type="number" min="0" max="99" data-npc-stat="defenseDice" value="{{npc.defenseDice}}" aria-label="Базовые кубики защиты">
       <small>d6</small>
       <button type="button" data-npc-action="roll" data-target="defense">Бросить защиту</button>
-    </label>
-    <label class="npc-stat npc-block">
-      <span>Блок</span>
-      <input type="number" min="0" max="99" data-npc-stat="block" value="{{npc.block}}" aria-label="Значение блока">
     </label>
   </section>
   <section class="npc-abilities">

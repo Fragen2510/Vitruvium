@@ -826,7 +826,6 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     const input = document.createElement("input");
     input.type = "text";
     input.dataset.relationshipStatus = "";
-    input.placeholder = "Например: брат";
     input.setAttribute("aria-label", "Статус отношения");
     const removeButton = document.createElement("button");
     removeButton.type = "button";
@@ -1098,7 +1097,6 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
       npc: {
         attackDice: clamp(npc.attackDice ?? 0, 0, 99),
         defenseDice: clamp(npc.defenseDice ?? 0, 0, 99),
-        block: clamp(npc.block ?? 0, 0, 99),
         abilities: Array.isArray(npc.abilities) ? npc.abilities : []
       }
     };
@@ -1109,8 +1107,7 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
     this.element.querySelectorAll("[data-npc-stat]").forEach((field) => {
       field.addEventListener("change", async () => {
         const key = field.dataset.npcStat;
-        const minimum = key === "block" ? 0 : 1;
-        const value = clamp(field.value, minimum, 99);
+        const value = clamp(field.value, 0, 99);
         field.value = String(value);
         try {
           await this.actor.update({ [`system.npc.${key}`]: value });
@@ -1169,12 +1166,12 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
     if (!["attack", "defense"].includes(target)) return;
     const npc = this.actor.system.npc ?? {};
     const ability = npc.abilities?.find((entry) => entry.id === button.dataset.abilityId);
-    const baseDice = clamp(target === "attack" ? npc.attackDice ?? 3 : npc.defenseDice ?? 2, 1, 99);
+    const baseDice = clamp(target === "attack" ? npc.attackDice ?? 0 : npc.defenseDice ?? 0, 0, 99);
     const bonusDice = ability ? clamp(ability.bonusDice, 0, 99) : 0;
     const dice = baseDice + bonusDice;
     const roll = await (new Roll(`${dice}d6`)).evaluate();
     if (diceSoNiceModelRegistered) roll.options.appearance = { system: SYSTEM_ID };
-    const results = roll.dice[0].results.map((result) => dieSuccess(result.result));
+    const results = (roll.dice[0]?.results ?? []).map((result) => dieSuccess(result.result));
     const successes = results.reduce((total, result) => total + result, 0);
     const label = target === "attack" ? "Атака" : "Защита";
     const abilityLabel = ability ? `Способность: ${escapeHtml(ability.name)}` : "Базовый бросок";
@@ -1295,9 +1292,8 @@ Hooks.on("preCreateActor", (actor) => {
   if (actor.type === "npc") {
     const npc = actor.system?.npc ?? {};
     actor.updateSource({ system: { npc: {
-      attackDice: npc.attackDice ?? 3,
-      defenseDice: npc.defenseDice ?? 2,
-      block: npc.block ?? 0,
+      attackDice: npc.attackDice ?? 0,
+      defenseDice: npc.defenseDice ?? 0,
       abilities: npc.abilities ?? []
     } } });
     return;
