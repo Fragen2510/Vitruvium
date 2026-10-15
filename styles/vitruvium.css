@@ -580,3 +580,13 @@
 .vitruvium.aspect-manager .image-button:hover {
   border-color:#f0a84a; background:#303a45; color:#fff;
 }
+.vitruvium .vitruvium-sheet .characteristic-card .characteristic-roll {
+  width:100%; min-height:0; padding:0; border:0; border-radius:4px;
+  background:transparent; color:inherit; font:inherit;
+}
+.vitruvium .vitruvium-sheet .characteristic-card .characteristic-roll:hover {
+  background:#303a45; color:#ffc16b;
+}
+.vitruvium .vitruvium-sheet .characteristic-card .characteristic-roll:focus-visible {
+  outline:2px solid #f0a84a; outline-offset:2px;
+}

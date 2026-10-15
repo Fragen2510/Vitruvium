@@ -33,7 +33,9 @@
                 <button type="button" data-vitruvium-action="adjust-characteristic" data-characteristic="{{key}}" data-delta="1" aria-label="Увеличить {{characteristic.label}}">+</button>
               </div>
             {{else}}
-              <b>{{lookup (lookup ../system.characteristics key) "value"}}</b>
+              <button type="button" class="characteristic-roll" data-vitruvium-action="roll-characteristic" data-characteristic="{{key}}" aria-label="Бросить {{characteristic.label}}: {{lookup (lookup ../system.characteristics key) "value"}} куб.">
+                <b>{{lookup (lookup ../system.characteristics key) "value"}}</b>
+              </button>
             {{/if}}
           </div>
         {{/each}}

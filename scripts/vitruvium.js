@@ -72,11 +72,12 @@ function renderRollCard(data) {
   const dieAction = `<div class="roll-action-group"><button type="button" data-vitruvium-roll-action="add-die">Добавить кубик</button><small>+1d6 за 1 вдохновение</small></div>`;
   const domainAction = `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи</button><small>1 вдохновение добавляет успехи по уровню домена</small></label>`;
   const actions = `<div class="roll-actions">${dieAction}${domainAction}</div>`;
-  return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary"><span><small>Пул</small><b>${data.baseDice}+${data.inspirationSpent}=${data.poolDice}d6</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
+  const characteristic = data.characteristic ? `<span><small>Характеристика</small><b>${escapeHtml(data.characteristic)}</b></span>` : "";
+  return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary">${characteristic}<span><small>Пул</small><b>${data.baseDice}+${data.inspirationSpent}=${data.poolDice}d6</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
 }
 
 /** Roll a special d6 pool. Each die yields 0, 1 or 2 successes. */
-async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, speaker, actor }) {
+async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, speaker, actor, characteristic }) {
   const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
   const count = clamp(dice, 1, maxDice);
   const availableInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
@@ -102,6 +103,7 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, s
   const mode = net > 0 ? `Преимущество ×${net}` : net < 0 ? `Помеха ×${Math.abs(net)}` : "Обычный бросок";
   const result = {
     actorUuid: actor?.uuid ?? null, character: actor?.name ?? speaker?.alias ?? "Без персонажа",
+    characteristic,
     baseDice: count, poolDice: poolSize, mode,
     inspirationSpent: spentInspiration, inspirationRemaining: availableInspiration - spentInspiration,
     pools: pools.map((pool) => ({ results: pool.results, successes: pool.successes })),
@@ -402,6 +404,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
           "cancel-name": VitruviumActorSheet.#cancelName,
           "adjust-inspiration": VitruviumActorSheet.#adjustInspiration,
           "adjust-characteristic": VitruviumActorSheet.#adjustCharacteristic,
+          "roll-characteristic": VitruviumActorSheet.#rollCharacteristic,
           "create-item": VitruviumActorSheet.#createItem, "delete-item": VitruviumActorSheet.#deleteItem,
           "edit-item": VitruviumActorSheet.#editItem, "save-item": VitruviumActorSheet.#saveItem,
           "cancel-item": VitruviumActorSheet.#cancelItem, "create-ability": VitruviumActorSheet.#createAbility,
@@ -498,6 +501,38 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     const value = clamp((this.actor.system.characteristics?.[key]?.value ?? 1) + Number(target.dataset.delta), 1, getSetting("maxCharacteristic"));
     await this.actor.update({ [`system.characteristics.${key}.value`]: value });
     return this.render();
+  }
+
+  static async #rollCharacteristic(event, target) {
+    const key = target.dataset.characteristic;
+    const characteristic = CHARACTERISTICS[key];
+    if (!characteristic) return;
+
+    const tray = document.querySelector("#vitruvium-dice-tray");
+    if (trayState.rolling) return;
+    trayState.rolling = true;
+    target.disabled = true;
+    const trayRollButton = tray?.querySelector("[data-tray-action='roll']");
+    if (trayRollButton) trayRollButton.disabled = true;
+    try {
+      const speaker = ChatMessage.getSpeaker({ actor: this.actor });
+      await rollPool({
+        dice: this.actor.system.characteristics?.[key]?.value ?? 1,
+        advantage: trayState.advantage,
+        hindrance: trayState.hindrance,
+        inspiration: trayState.inspiration,
+        speaker,
+        actor: this.actor,
+        characteristic: characteristic.label
+      });
+    } catch (error) {
+      console.error("Vitruvium characteristic roll failed.", error);
+      ui.notifications.error("Не удалось выполнить проверку характеристики.");
+    } finally {
+      trayState.rolling = false;
+      if (tray?.isConnected) updateTrayDisplay(tray);
+      if (target.isConnected) target.disabled = false;
+    }
   }
 
   static async #createItem(event, target) {
