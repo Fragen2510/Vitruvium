@@ -10,6 +10,7 @@ const CHARACTERISTICS = {
   influence: { label: "Влияние" },
   will: { label: "Воля" }
 };
+const CHARACTERISTIC_KEYS = new Set(Object.keys(CHARACTERISTICS));
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
 const getSetting = (key) => game.settings.get(SYSTEM_ID, key);
@@ -18,6 +19,11 @@ const hasCustomImage = (image) => {
   return Boolean(path) && !["icons/svg/mystery-man.svg", "icons/svg/item-bag.svg"].some((placeholder) => path.endsWith(placeholder));
 };
 const dieSuccess = (face) => (face === 6 ? 2 : face >= 4 ? 1 : 0);
+const getStatusCharacteristicModifier = (actor, key) => actor.items
+  .filter((item) => item.type === "status" && item.system.active !== false)
+  .flatMap((item) => Array.isArray(item.system.effects) ? item.system.effects : [])
+  .filter((effect) => effect.characteristic === key && Number.isFinite(Number(effect.modifier)))
+  .reduce((total, effect) => total + Number(effect.modifier), 0);
 const successLabel = (count) => {
   const lastTwo = count % 100;
   if (lastTwo >= 11 && lastTwo <= 14) return "успехов";
@@ -72,12 +78,16 @@ function renderRollCard(data) {
   const dieAction = `<div class="roll-action-group"><button type="button" data-vitruvium-roll-action="add-die">Добавить кубик</button><small>+1d6 за 1 вдохновение</small></div>`;
   const domainAction = `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи</button><small>1 вдохновение добавляет успехи по уровню домена</small></label>`;
   const actions = `<div class="roll-actions">${dieAction}${domainAction}</div>`;
-  const characteristic = data.characteristic ? `<span><small>Характеристика</small><b>${escapeHtml(data.characteristic)}</b></span>` : "";
+  const characteristicModifier = Number(data.characteristicModifier) || 0;
+  const modifierLabel = characteristicModifier
+    ? ` (${characteristicModifier > 0 ? "+" : "−"}${Math.abs(characteristicModifier)} от статусов)`
+    : "";
+  const characteristic = data.characteristic ? `<span><small>Характеристика</small><b>${escapeHtml(data.characteristic + modifierLabel)}</b></span>` : "";
   return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary">${characteristic}<span><small>Пул</small><b>${data.baseDice}+${data.inspirationSpent}=${data.poolDice}d6</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
 }
 
 /** Roll a special d6 pool. Each die yields 0, 1 or 2 successes. */
-async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, speaker, actor, characteristic }) {
+async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, speaker, actor, characteristic, characteristicModifier = 0 }) {
   const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
   const count = clamp(dice, 1, maxDice);
   const availableInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
@@ -103,7 +113,7 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, s
   const mode = net > 0 ? `Преимущество ×${net}` : net < 0 ? `Помеха ×${Math.abs(net)}` : "Обычный бросок";
   const result = {
     actorUuid: actor?.uuid ?? null, character: actor?.name ?? speaker?.alias ?? "Без персонажа",
-    characteristic,
+    characteristic, characteristicModifier,
     baseDice: count, poolDice: poolSize, mode,
     inspirationSpent: spentInspiration, inspirationRemaining: availableInspiration - spentInspiration,
     pools: pools.map((pool) => ({ results: pool.results, successes: pool.successes })),
@@ -361,6 +371,23 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     const itemsOfType = (type) => this.actor.items.filter((item) => item.type === type).map((item) => ({
       id: item.id, name: item.name, img: item.img, hasImage: hasCustomImage(item.img), system: item.system
     }));
+    const statuses = this.actor.items.filter((item) => item.type === "status").map((item) => ({
+      id: item.id,
+      name: item.name,
+      img: item.img,
+      hasImage: hasCustomImage(item.img),
+      system: {
+        ...item.system,
+        active: item.system.active !== false,
+        effects: (Array.isArray(item.system.effects) ? item.system.effects : []).map((effect, index) => ({
+          ...effect,
+          id: effect.id ?? `status-effect-${index}`,
+          characteristicOptions: Object.entries(CHARACTERISTICS).map(([key, characteristic]) => ({
+            key, label: characteristic.label, selected: effect.characteristic === key
+          }))
+        }))
+      }
+    }));
     const domains = this.actor.items.filter((item) => item.type === "domain").map((domain) => ({
       id: domain.id, name: domain.name, img: domain.img, hasImage: hasCustomImage(domain.img), system: domain.system,
       abilities: this.actor.items.filter((item) => item.type === "ability" && item.system.domainId === domain.id).map((ability) => ({
@@ -379,7 +406,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       abilities: itemsOfType("ability"),
       attributes: itemsOfType("attribute"),
       possessions: itemsOfType("possession"),
-      statuses: itemsOfType("status"),
+      statuses,
       editing: this.editing, editingItems: this.editingItems
     };
   }
@@ -405,6 +432,8 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
           "adjust-inspiration": VitruviumActorSheet.#adjustInspiration,
           "adjust-characteristic": VitruviumActorSheet.#adjustCharacteristic,
           "roll-characteristic": VitruviumActorSheet.#rollCharacteristic,
+          "add-status-effect": VitruviumActorSheet.#addStatusEffect,
+          "remove-status-effect": VitruviumActorSheet.#removeStatusEffect,
           "create-item": VitruviumActorSheet.#createItem, "delete-item": VitruviumActorSheet.#deleteItem,
           "edit-item": VitruviumActorSheet.#editItem, "save-item": VitruviumActorSheet.#saveItem,
           "cancel-item": VitruviumActorSheet.#cancelItem, "create-ability": VitruviumActorSheet.#createAbility,
@@ -516,14 +545,16 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     if (trayRollButton) trayRollButton.disabled = true;
     try {
       const speaker = ChatMessage.getSpeaker({ actor: this.actor });
+      const characteristicModifier = getStatusCharacteristicModifier(this.actor, key);
       await rollPool({
-        dice: this.actor.system.characteristics?.[key]?.value ?? 1,
+        dice: (this.actor.system.characteristics?.[key]?.value ?? 1) + characteristicModifier,
         advantage: trayState.advantage,
         hindrance: trayState.hindrance,
         inspiration: trayState.inspiration,
         speaker,
         actor: this.actor,
-        characteristic: characteristic.label
+        characteristic: characteristic.label,
+        characteristicModifier
       });
     } catch (error) {
       console.error("Vitruvium characteristic roll failed.", error);
@@ -535,6 +566,52 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     }
   }
 
+  static async #addStatusEffect(event, target) {
+    const effectList = target.closest("article")?.querySelector(".status-effects");
+    if (!effectList) throw new Error("Status effect list was not found.");
+    const effect = document.createElement("div");
+    effect.className = "status-effect";
+    effect.dataset.statusEffectId = foundry.utils.randomID();
+
+    const characteristicLabel = document.createElement("label");
+    characteristicLabel.textContent = "Характеристика";
+    const characteristicSelect = document.createElement("select");
+    characteristicSelect.dataset.statusEffectField = "characteristic";
+    for (const [key, characteristic] of Object.entries(CHARACTERISTICS)) {
+      const option = document.createElement("option");
+      option.value = key;
+      option.textContent = characteristic.label;
+      characteristicSelect.append(option);
+    }
+    characteristicLabel.append(characteristicSelect);
+
+    const modifierLabel = document.createElement("label");
+    modifierLabel.textContent = "Изменение кубов";
+    const modifierInput = document.createElement("input");
+    modifierInput.type = "number";
+    modifierInput.step = "1";
+    modifierInput.value = "0";
+    modifierInput.dataset.statusEffectField = "modifier";
+    modifierLabel.append(modifierInput);
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.dataset.vitruviumAction = "remove-status-effect";
+    removeButton.textContent = "Удалить эффект";
+    removeButton.addEventListener("click", (clickEvent) => {
+      clickEvent.preventDefault();
+      effect.remove();
+    });
+    effect.append(characteristicLabel, modifierLabel, removeButton);
+    effectList.append(effect);
+  }
+
+  static async #removeStatusEffect(event, target) {
+    const effect = target.closest("[data-status-effect-id]");
+    if (!effect) throw new Error("Status effect was not found.");
+    effect.remove();
+  }
+
   static async #createItem(event, target) {
     const type = target.dataset.type;
     if (type === "domain" && this.actor.items.filter((item) => item.type === "domain").length >= 6) {
@@ -544,7 +621,12 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       return ui.notifications.warn("У персонажа не может быть больше 12 атрибутов.");
     }
     const labels = { domain: "Новый домен", ability: "Новая способность", attribute: "Новый атрибут", possession: "Новое имущество", status: "Новый статус" };
-    const [item] = await this.actor.createEmbeddedDocuments("Item", [{ name: labels[type], type, system: type === "domain" ? { value: 1, description: "" } : { description: "" } }]);
+    const system = type === "domain"
+      ? { value: 1, description: "" }
+      : type === "status"
+        ? { description: "", active: true, effects: [] }
+        : { description: "" };
+    const [item] = await this.actor.createEmbeddedDocuments("Item", [{ name: labels[type], type, system }]);
     this.editingItems[item.id] = true;
     return this.render();
   }
@@ -576,6 +658,21 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       } else {
         foundry.utils.setProperty(updates, field.dataset.itemField, value);
       }
+    }
+    if (item.type === "status") {
+      const statusCard = target.closest("article");
+      const activeField = statusCard.querySelector("[data-status-active]");
+      const effects = [...statusCard.querySelectorAll("[data-status-effect-id]")].map((effect) => {
+        const characteristic = effect.querySelector("[data-status-effect-field='characteristic']")?.value;
+        const modifierValue = effect.querySelector("[data-status-effect-field='modifier']")?.value;
+        const modifier = Number(modifierValue);
+        if (!CHARACTERISTIC_KEYS.has(characteristic) || !Number.isFinite(modifier)) {
+          throw new Error("Status effect contains an invalid characteristic modifier.");
+        }
+        return { id: effect.dataset.statusEffectId, characteristic, modifier: Math.trunc(modifier) };
+      });
+      foundry.utils.setProperty(updates, "system.active", activeField?.checked ?? true);
+      foundry.utils.setProperty(updates, "system.effects", effects);
     }
     await item.update(updates);
     const sections = { domain: "domains", ability: "domains", attribute: "attributes", possession: "possessions", status: "statuses" };

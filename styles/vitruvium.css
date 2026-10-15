@@ -148,6 +148,18 @@
 .vitruvium .entity-card > .entity-image { grid-column:1; grid-row:1; }
 .vitruvium .entity-content, .vitruvium .entity-edit { min-width:0; }
 .vitruvium .entity-edit { display:grid; gap:7px; width:100%; }
+.vitruvium .status-active-toggle { display:flex; align-items:center; gap:7px; color:#b9c7d3; }
+.vitruvium .status-active-toggle input { width:16px; min-height:16px; margin:0; accent-color:#f0a84a; }
+.vitruvium .status-effects { display:grid; gap:7px; min-width:0; padding:9px; border:1px solid #354653; border-radius:7px; background:#1c2731; }
+.vitruvium .status-effects > b { color:#dce6ef; font-size:.84rem; }
+.vitruvium .status-effect { display:grid; grid-template-columns:minmax(0,1fr) minmax(100px,.5fr) auto; align-items:end; gap:7px; min-width:0; padding:7px; border:1px solid #354653; border-radius:6px; background:#232d38; }
+.vitruvium .status-effect label { display:grid; gap:4px; min-width:0; color:#b9c7d3; font-size:.78rem; }
+.vitruvium .status-effect select, .vitruvium .status-effect input { width:100%; min-width:0; min-height:34px; padding:6px 8px; border:1px solid #465767; border-radius:7px; background:#111820; color:#edf3f8; font:inherit; }
+.vitruvium .status-effect button { min-width:0; }
+.vitruvium .status-state { color:#9fb0bf; font-size:.78rem; }
+@media (max-width:560px) {
+  .vitruvium .status-effect { grid-template-columns:minmax(0,1fr); }
+}
 .vitruvium .form-actions {
   display:flex; grid-column:1 / -1; flex:0 0 100%; flex-wrap:wrap;
   align-items:center; justify-content:flex-start; gap:6px; width:100%; min-width:0; margin-top:5px;

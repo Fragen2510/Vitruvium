@@ -63,6 +63,22 @@
                 <div class="entity-edit">
                   <input class="inline-edit" data-item-id="{{id}}" data-item-field="name" value="{{name}}" aria-label="Название статуса">
                   <textarea class="inline-edit" data-item-id="{{id}}" data-item-field="system.description" aria-label="Описание статуса">{{system.description}}</textarea>
+                  <label class="status-active-toggle"><input type="checkbox" data-status-active {{#if system.active}}checked{{/if}}>Активен — эффекты учитываются при бросках</label>
+                  <div class="status-effects">
+                    <b>Эффекты характеристик</b>
+                    {{#each system.effects}}
+                      <div class="status-effect" data-status-effect-id="{{id}}">
+                        <label>Характеристика
+                          <select data-status-effect-field="characteristic">
+                            {{#each characteristicOptions}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+                          </select>
+                        </label>
+                        <label>Изменение кубов<input type="number" step="1" value="{{modifier}}" data-status-effect-field="modifier"></label>
+                        <button type="button" data-vitruvium-action="remove-status-effect">Удалить эффект</button>
+                      </div>
+                    {{/each}}
+                    <button type="button" data-vitruvium-action="add-status-effect">Добавить эффект</button>
+                  </div>
                   <div class="image-actions"><label class="image-button">Изменить фото<input type="file" data-item-image="{{id}}" accept="image/*"></label><button type="button" data-vitruvium-action="remove-item-image" data-item-id="{{id}}">Удалить фото</button></div>
                   <div class="form-actions"><button type="button" data-vitruvium-action="save-item" data-item-id="{{id}}">Сохранить</button><button type="button" data-vitruvium-action="cancel-item" data-item-id="{{id}}">Отмена</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>
                 </div>
@@ -70,6 +86,7 @@
               {{else}}
                 {{#if hasImage}}<img class="entity-image" src="{{img}}" alt="">{{/if}}
                 <div class="entity-content"><b>{{name}}</b>
+                  <small class="status-state">{{#if system.active}}Активен{{else}}Неактивен{{/if}}</small>
                   {{#if ../editing.statuses}}<div class="form-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>{{/if}}
                 </div>
                 {{#if system.description}}<details class="description-details"><summary>Описание</summary><p>{{system.description}}</p></details>{{/if}}
