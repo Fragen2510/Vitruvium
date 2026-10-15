@@ -47,6 +47,7 @@
           {{#if actorHasImage}}<img class="profile" src="{{actor.img}}" alt="Портрет персонажа">{{/if}}
           <div class="profile-actions">
             <label class="image-button">{{#if actorHasImage}}Изменить фото{{else}}Добавить фото{{/if}}<input type="file" data-actor-image accept="image/*"></label>
+            {{#if tokenizerAvailable}}<button type="button" data-vitruvium-action="tokenize-actor-image">Создать портрет в Tokenizer</button>{{/if}}
             {{#if actorHasImage}}<button type="button" data-vitruvium-action="remove-actor-image">Удалить фото</button>{{/if}}
           </div>
         </div>

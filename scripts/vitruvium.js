@@ -340,9 +340,11 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         id: ability.id, name: ability.name, img: ability.img, hasImage: hasCustomImage(ability.img), system: ability.system
       }))
     }));
+    const tokenizer = game.modules.get("vtta-tokenizer");
     return {
       ...context, actor: this.actor, system: this.actor.system, characteristics: CHARACTERISTICS,
       actorHasImage: hasCustomImage(this.actor.img),
+      tokenizerAvailable: Boolean(tokenizer?.active && (tokenizer.api?.launch || globalThis.Tokenizer?.launch)),
       editingName: this.editingName,
       relationships, maxCharacteristic: getSetting("maxCharacteristic"), relationshipMin: getSetting("relationshipMin"),
       relationshipMax: getSetting("relationshipMax"), maxInspiration: 6, resources,
@@ -385,6 +387,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
           "delete-resource": VitruviumActorSheet.#deleteResource, "adjust-resource": VitruviumActorSheet.#adjustResource,
           "remove-relationship-image": VitruviumActorSheet.#removeRelationshipImage,
           "remove-actor-image": VitruviumActorSheet.#removeActorImage,
+          "tokenize-actor-image": VitruviumActorSheet.#tokenizeActorImage,
           "remove-item-image": VitruviumActorSheet.#removeItemImage,
           "remove-resource-image": VitruviumActorSheet.#removeResourceImage
         };
@@ -601,6 +604,41 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
   static async #removeActorImage() {
     await this.actor.update({ img: "icons/svg/mystery-man.svg" });
     return this.render();
+  }
+
+  static async #tokenizeActorImage() {
+    const module = game.modules.get("vtta-tokenizer");
+    const launchTokenizer = module?.active ? module.api?.launch ?? globalThis.Tokenizer?.launch : null;
+    if (typeof launchTokenizer !== "function") {
+      throw new Error("The active Tokenizer module does not expose its launch API.");
+    }
+    if (game.settings.get("vtta-tokenizer", "token-only-toggle")) {
+      ui.notifications.warn("В настройках Tokenizer включён режим «Только токен». Включите создание аватара, чтобы изменить портрет персонажа.");
+      return;
+    }
+
+    const actor = this.actor;
+    const onTokenized = (result) => {
+      void (async () => {
+        const avatar = result?.avatarFilename;
+        if (typeof avatar !== "string" || !avatar) {
+          throw new Error("Tokenizer did not return an avatar path.");
+        }
+        const image = `${avatar.split("?")[0]}?${Date.now()}`;
+        await actor.update({ img: image });
+        await this.render();
+      })().catch((error) => {
+        console.error("Vitruvium Tokenizer portrait update failed.", error);
+        ui.notifications.error("Не удалось сохранить портрет из Tokenizer.");
+      });
+    };
+
+    launchTokenizer({
+      name: actor.name,
+      type: "pc",
+      avatarFilename: actor.img,
+      tokenFilename: actor.prototypeToken.texture.src
+    }, onTokenized);
   }
 
   static async #updateRelationshipImage(input) {
