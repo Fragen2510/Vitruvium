@@ -45,17 +45,25 @@ const hasCustomImage = (image) => {
   return Boolean(path) && !["icons/svg/mystery-man.svg", "icons/svg/item-bag.svg"].some((placeholder) => path.endsWith(placeholder));
 };
 const dieSuccess = (face) => (face === 6 ? 2 : face >= 4 ? 1 : 0);
-class VitruviumDie extends Die {
-  constructor(termData) {
-    termData.faces = 6;
-    super(termData);
+function registerVitruviumDieTerm() {
+  const DieBase = foundry.dice?.terms?.Die ?? CONFIG.Dice?.terms?.d;
+  if (typeof DieBase !== "function") {
+    console.error("Vitruvium could not register its custom dV die term: Foundry Die class is unavailable.");
+    return false;
   }
+  class VitruviumDie extends DieBase {
+    constructor(termData) {
+      super({ ...termData, faces: 6 });
+    }
 
-  static DENOMINATION = VITRUVIUM_DIE_DENOMINATION;
+    static DENOMINATION = VITRUVIUM_DIE_DENOMINATION;
 
-  getResultLabel(result) {
-    return String(dieSuccess(result.result));
+    getResultLabel(result) {
+      return String(dieSuccess(result.result));
+    }
   }
+  CONFIG.Dice.terms[VITRUVIUM_DIE_DENOMINATION] = VitruviumDie;
+  return true;
 }
 
 const getStatusCharacteristicModifiers = (actor, key) => {
@@ -111,7 +119,7 @@ async function registerDiceSoNiceModel(dice3d) {
     }
     const modelFiles = [...new Set((directory.files ?? [])
       .filter((file) => /\.glb$/i.test(file))
-      .concat(`${DICE_SO_NICE_MODEL_DIRECTORY}/vitruvium-d6.glb`))].sort();
+    )].sort();
     const { DiceSystem } = await import("/modules/dice-so-nice/api.js");
     let registeredModels = 0;
 
@@ -1510,7 +1518,7 @@ async function normalizeActorLimits() {
 
 Hooks.once("init", () => {
   registerSettings();
-  CONFIG.Dice.terms[VITRUVIUM_DIE_DENOMINATION] = VitruviumDie;
+  registerVitruviumDieTerm();
   CONFIG.VITRUVIUM = { characteristics: CHARACTERISTICS };
   const SheetConfig = foundry.applications.apps.DocumentSheetConfig;
   SheetConfig.registerSheet(Actor, SYSTEM_ID, VitruviumActorSheet, { types: ["character"], makeDefault: true });
