@@ -88,8 +88,16 @@ async function registerDiceSoNiceModel(dice3d) {
   if (!dice3d?.addSystem || !dice3d?.addDicePreset) return;
   try {
     const modelUrl = foundry.utils.getRoute(DICE_SO_NICE_MODEL);
-    const response = await fetch(modelUrl, { method: "HEAD" });
-    if (!response.ok) return;
+    const response = await fetch(modelUrl);
+    if (!response.ok) {
+      console.warn(`Vitruvium Dice So Nice model is unavailable (${response.status}); using the default d6.`);
+      return;
+    }
+    const buffer = await response.arrayBuffer();
+    if (!isValidDiceSoNiceModel(buffer)) {
+      console.warn("Vitruvium Dice So Nice model is invalid or contains no mesh; using the default d6.");
+      return;
+    }
 
     const { DiceSystem } = await import("/modules/dice-so-nice/api.js");
     const system = new DiceSystem(SYSTEM_ID, "Vitruvium", "default", "Vitruvium");
@@ -100,6 +108,23 @@ async function registerDiceSoNiceModel(dice3d) {
     diceSoNiceModelRegistered = true;
   } catch (error) {
     console.warn("Vitruvium could not register its Dice So Nice d6 model.", error);
+  }
+}
+
+function isValidDiceSoNiceModel(buffer) {
+  try {
+    const view = new DataView(buffer);
+    if (buffer.byteLength < 20 || view.getUint32(0, true) !== 0x46546c67
+      || view.getUint32(4, true) !== 2 || view.getUint32(8, true) !== buffer.byteLength) return false;
+    const jsonLength = view.getUint32(12, true);
+    if (view.getUint32(16, true) !== 0x4e4f534a || jsonLength > buffer.byteLength - 20) return false;
+    const gltf = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 20, jsonLength)).trim());
+    return Array.isArray(gltf.meshes)
+      && gltf.meshes.some((mesh) => Array.isArray(mesh.primitives) && mesh.primitives.length > 0)
+      && Array.isArray(gltf.nodes)
+      && gltf.nodes.some((node) => Number.isInteger(node.mesh) && gltf.meshes[node.mesh]);
+  } catch (error) {
+    return false;
   }
 }
 

@@ -4,7 +4,7 @@ The optional Dice So Nice integration looks for this file:
 
 `systems/vitruvium/assets/dice/vitruvium-d6.glb`
 
-The GLB is not included yet. Place the finished model at that path; the system will register it when Dice So Nice is ready.
+Place the finished model at that path; the system registers it only if it is a valid GLB 2.0 file containing a mesh. If the file is missing or invalid, Dice So Nice uses its default d6.
 
 ## Model requirements
 
