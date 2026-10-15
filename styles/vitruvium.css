@@ -1,6 +1,7 @@
 .vitruvium { --accent: #f0a84a; --surface: #18212d; --surface-2: #263341; --text: #f6f8fb; --muted: #b8c4d1; color: var(--text); }
 .vitruvium .vitruvium-sheet { padding: 16px; background: var(--surface); color: var(--text); min-height: 100%; }
-.vitruvium .vitruvium-sheet header, .vitruvium.aspect-manager .aspect-manager-body header { display: flex; align-items: center; gap: 12px; }
+.vitruvium .stat-panel > header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; }
+.vitruvium .stat-panel > header h2 { flex:1; margin:0; font-size:.9rem; }
 .vitruvium .profile { width: 64px; height: 64px; object-fit: cover; border: 0; }
 .vitruvium .name, .vitruvium input, .vitruvium textarea { color: #111820; background: #f7fafc; border: 1px solid #8091a3; }
 .vitruvium .name { font-size: 1.55em; font-weight: 700; }

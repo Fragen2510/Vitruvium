@@ -314,21 +314,39 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     form: { closeOnSubmit: false, submitOnChange: true }
   };
   static PARTS = { main: { template: "systems/vitruvium/templates/actor-sheet.hbs" } };
-  render(options = {}) {
-    this._vitruviumScrollPositions = this.element
-      ? [...this.element.querySelectorAll(".window-content, .character-sheet, .scroll-list, .resource-list")]
-        .map((element, index) => ({ index, top: element.scrollTop, left: element.scrollLeft }))
-      : [];
-    return super.render(options);
-  }
   constructor(options) {
     super(options);
     this.editingName = false;
     this.editing = { characteristics: false, domains: false, attributes: false, possessions: false, statuses: false, relationships: false, resources: false };
     this.editingItems = {};
+    this._vitruviumScrollPositions = null;
+    this._vitruviumRenderVersion = 0;
   }
   get actor() { return this.object ?? this.document; }
   get title() { return this.actor.name; }
+
+  async render(options = {}) {
+    if (!this._vitruviumScrollPositions && this.element) {
+      this._vitruviumScrollPositions = [...this.element.querySelectorAll(".window-content, .character-sheet, .scroll-list, .resource-list")]
+        .map((element, index) => ({ index, top: element.scrollTop, left: element.scrollLeft }));
+    }
+    const renderVersion = ++this._vitruviumRenderVersion;
+    const result = await super.render(options);
+    if (this._vitruviumScrollPositions?.length) {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      if (renderVersion === this._vitruviumRenderVersion) {
+        const scrollContainers = this.element.querySelectorAll(".window-content, .character-sheet, .scroll-list, .resource-list");
+        this._vitruviumScrollPositions.forEach(({ index, top, left }) => {
+          const container = scrollContainers[index];
+          if (!container) return;
+          container.scrollTop = top;
+          container.scrollLeft = left;
+        });
+        this._vitruviumScrollPositions = null;
+      }
+    }
+    return result;
+  }
 
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
@@ -366,17 +384,6 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
 
   async _onRender(context, options) {
     await super._onRender(context, options);
-    if (this._vitruviumScrollPositions?.length) {
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      const scrollContainers = this.element.querySelectorAll(".window-content, .character-sheet, .scroll-list, .resource-list");
-      this._vitruviumScrollPositions.forEach(({ index, top, left }) => {
-        const container = scrollContainers[index];
-        if (!container) return;
-        container.scrollTop = top;
-        container.scrollLeft = left;
-      });
-    }
-    this._vitruviumScrollPositions = null;
     this.element.querySelectorAll("[data-vitruvium-action]").forEach((button) => {
       button.addEventListener("click", async (event) => {
         event.preventDefault();
