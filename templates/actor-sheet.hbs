@@ -76,10 +76,12 @@
                             {{#each characteristicOptions}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
                           </select>
                         </label>
-                        <label>Изменение кубов<input type="number" step="1" value="{{modifier}}" data-status-effect-field="modifier"></label>
-                        <label>Преимущество (0–2)<input type="number" min="0" max="2" step="1" value="{{advantage}}" data-status-effect-field="advantage"></label>
-                        <label>Помеха (0–2)<input type="number" min="0" max="2" step="1" value="{{hindrance}}" data-status-effect-field="hindrance"></label>
-                        <small class="status-effect-hint">Бонусы активных статусов суммируются до максимума 2 по каждой характеристике.</small>
+                        <label>Тип эффекта
+                          <select data-status-effect-field="type">
+                            {{#each typeOptions}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+                          </select>
+                        </label>
+                        <label>Значение<input type="number" step="1" value="{{value}}" data-status-effect-field="value"></label>
                         <button type="button" data-vitruvium-action="remove-status-effect">Удалить эффект</button>
                       </div>
                     {{/each}}
@@ -99,7 +101,7 @@
                 {{#if hasEffects}}
                   <details class="status-effect-details">
                     <summary>Эффекты ({{system.effects.length}})</summary>
-                    <ul>{{#each system.effects}}<li>{{#if modifier}}<b>{{modifierText}}</b> куб.{{/if}}{{#if advantage}}<b>Преимущество +{{advantage}}</b>{{/if}}{{#if hindrance}}<b>Помеха +{{hindrance}}</b>{{/if}} — {{characteristicLabel}}</li>{{/each}}</ul>
+                    <ul>{{#each system.effects}}<li><span>{{label}}:</span> <b>{{displayValue}}</b> <span>— {{characteristicLabel}}</span></li>{{/each}}</ul>
                   </details>
                 {{/if}}
               {{/if}}

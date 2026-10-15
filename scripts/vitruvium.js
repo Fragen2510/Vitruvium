@@ -12,8 +12,17 @@ const CHARACTERISTICS = {
 };
 const CHARACTERISTIC_KEYS = new Set(Object.keys(CHARACTERISTICS));
 const MAX_ADVANTAGE_HINDRANCE = 2;
+const STATUS_EFFECT_TYPES = {
+  dice: "Изменение кубов",
+  advantage: "Преимущество",
+  hindrance: "Помеха"
+};
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
+const getEffectValue = (effect, type) => {
+  const value = Number(effect.type ? (effect.type === type ? effect.value : 0) : effect[type === "dice" ? "modifier" : type]);
+  return Number.isFinite(value) ? value : 0;
+};
 const getBonusDieCount = ({ net, bonusDieMode }) => bonusDieMode && net ? 1 + Math.abs(net) : 1;
 const selectBonusDieResult = (results, net, bonusDieMode) => {
   const selectedIndex = results.reduce((selected, result, index) => {
@@ -39,16 +48,18 @@ const getStatusCharacteristicModifiers = (actor, key) => {
     .filter((item) => item.type === "status" && item.system.active !== false)
     .flatMap((item) => Array.isArray(item.system.effects) ? item.system.effects : [])
     .filter((effect) => effect.characteristic === key);
-  const sum = (field) => effects.reduce((total, effect) => {
-    const value = Number(effect[field]);
-    return total + (Number.isFinite(value) ? value : 0);
-  }, 0);
+  const sum = (type) => effects.reduce((total, effect) => total + getEffectValue(effect, type), 0);
   return {
-    modifier: sum("modifier"),
+    modifier: sum("dice"),
     advantage: clamp(Math.trunc(sum("advantage")), 0, MAX_ADVANTAGE_HINDRANCE),
     hindrance: clamp(Math.trunc(sum("hindrance")), 0, MAX_ADVANTAGE_HINDRANCE)
   };
 };
+const getNpcStatusModifier = (npc, target) => (Array.isArray(npc?.statuses) ? npc.statuses : [])
+  .filter((status) => status.active !== false)
+  .flatMap((status) => Array.isArray(status.effects) ? status.effects : [])
+  .filter((effect) => effect.target === target && Number.isFinite(Number(effect.modifier)))
+  .reduce((total, effect) => total + Number(effect.modifier), 0);
 const successLabel = (count) => {
   const lastTwo = count % 100;
   if (lastTwo >= 11 && lastTwo <= 14) return "успехов";
@@ -420,20 +431,32 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       id: item.id, name: item.name, img: item.img, hasImage: hasCustomImage(item.img), system: item.system
     }));
     const statuses = this.actor.items.filter((item) => item.type === "status").map((item) => {
-      const effects = (Array.isArray(item.system.effects) ? item.system.effects : []).map((effect, index) => {
-        const modifier = Number.isFinite(Number(effect.modifier)) ? Number(effect.modifier) : 0;
-        return {
-          ...effect,
-          id: effect.id ?? `status-effect-${index}`,
-          modifier,
-          modifierText: modifier > 0 ? `+${modifier}` : String(modifier),
-          advantage: clamp(Math.trunc(Number(effect.advantage) || 0), 0, MAX_ADVANTAGE_HINDRANCE),
-          hindrance: clamp(Math.trunc(Number(effect.hindrance) || 0), 0, MAX_ADVANTAGE_HINDRANCE),
-          characteristicLabel: CHARACTERISTICS[effect.characteristic]?.label ?? "Характеристика",
-          characteristicOptions: Object.entries(CHARACTERISTICS).map(([key, characteristic]) => ({
-            key, label: characteristic.label, selected: effect.characteristic === key
-          }))
-        };
+      const effects = (Array.isArray(item.system.effects) ? item.system.effects : []).flatMap((effect, index) => {
+        const entries = STATUS_EFFECT_TYPES[effect.type]
+          ? [{ type: effect.type, value: Number(effect.value) }]
+          : ["dice", "advantage", "hindrance"]
+            .map((type) => ({ type, value: getEffectValue(effect, type) }))
+            .filter(({ value }) => value !== 0);
+        return entries.map(({ type, value }, entryIndex) => {
+          const normalizedValue = Number.isFinite(value) ? Math.trunc(value) : 0;
+          return {
+            id: `${effect.id ?? `status-effect-${index}`}${entries.length > 1 ? `-${entryIndex}` : ""}`,
+            type,
+            value: type === "dice"
+              ? normalizedValue
+              : clamp(normalizedValue, 0, MAX_ADVANTAGE_HINDRANCE),
+            displayValue: type === "dice" && normalizedValue > 0 ? `+${normalizedValue}` : String(normalizedValue),
+            label: STATUS_EFFECT_TYPES[type],
+            characteristic: effect.characteristic,
+            characteristicLabel: CHARACTERISTICS[effect.characteristic]?.label ?? "Характеристика",
+            characteristicOptions: Object.entries(CHARACTERISTICS).map(([key, characteristic]) => ({
+              key, label: characteristic.label, selected: effect.characteristic === key
+            })),
+            typeOptions: Object.entries(STATUS_EFFECT_TYPES).map(([key, label]) => ({
+              key, label, selected: type === key
+            }))
+          };
+        });
       });
       return {
         id: item.id,
@@ -661,30 +684,26 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     }
     characteristicLabel.append(characteristicSelect);
 
-    const modifierLabel = document.createElement("label");
-    modifierLabel.textContent = "Изменение кубов";
-    const modifierInput = document.createElement("input");
-    modifierInput.type = "number";
-    modifierInput.step = "1";
-    modifierInput.value = "0";
-    modifierInput.dataset.statusEffectField = "modifier";
-    modifierLabel.append(modifierInput);
+    const typeLabel = document.createElement("label");
+    typeLabel.textContent = "Тип эффекта";
+    const typeSelect = document.createElement("select");
+    typeSelect.dataset.statusEffectField = "type";
+    for (const [key, label] of Object.entries(STATUS_EFFECT_TYPES)) {
+      const option = document.createElement("option");
+      option.value = key;
+      option.textContent = label;
+      typeSelect.append(option);
+    }
+    typeLabel.append(typeSelect);
 
-    const createLimitInput = (field, labelText) => {
-      const label = document.createElement("label");
-      label.textContent = labelText;
-      const input = document.createElement("input");
-      input.type = "number";
-      input.min = "0";
-      input.max = String(MAX_ADVANTAGE_HINDRANCE);
-      input.step = "1";
-      input.value = "0";
-      input.dataset.statusEffectField = field;
-      label.append(input);
-      return label;
-    };
-    const advantageLabel = createLimitInput("advantage", `Преимущество (0–${MAX_ADVANTAGE_HINDRANCE})`);
-    const hindranceLabel = createLimitInput("hindrance", `Помеха (0–${MAX_ADVANTAGE_HINDRANCE})`);
+    const valueLabel = document.createElement("label");
+    valueLabel.textContent = "Значение";
+    const valueInput = document.createElement("input");
+    valueInput.type = "number";
+    valueInput.step = "1";
+    valueInput.value = "0";
+    valueInput.dataset.statusEffectField = "value";
+    valueLabel.append(valueInput);
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
@@ -694,7 +713,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       clickEvent.preventDefault();
       effect.remove();
     });
-    effect.append(characteristicLabel, modifierLabel, advantageLabel, hindranceLabel, removeButton);
+    effect.append(characteristicLabel, typeLabel, valueLabel, removeButton);
     effectList.append(effect);
   }
 
@@ -756,22 +775,18 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       const activeField = statusCard.querySelector("[data-status-active]");
       const effects = [...statusCard.querySelectorAll("[data-status-effect-id]")].map((effect) => {
         const characteristic = effect.querySelector("[data-status-effect-field='characteristic']")?.value;
-        const modifierValue = effect.querySelector("[data-status-effect-field='modifier']")?.value;
-        const modifier = Number(modifierValue);
-        const advantage = Number(effect.querySelector("[data-status-effect-field='advantage']")?.value ?? 0);
-        const hindrance = Number(effect.querySelector("[data-status-effect-field='hindrance']")?.value ?? 0);
-        if (!CHARACTERISTIC_KEYS.has(characteristic) || !Number.isFinite(modifier)) {
-          throw new Error("Status effect contains an invalid characteristic modifier.");
-        }
-        if (!Number.isFinite(advantage) || !Number.isFinite(hindrance)) {
-          throw new Error("Status effect contains an invalid advantage or hindrance value.");
+        const type = effect.querySelector("[data-status-effect-field='type']")?.value;
+        const value = Number(effect.querySelector("[data-status-effect-field='value']")?.value);
+        if (!CHARACTERISTIC_KEYS.has(characteristic) || !Object.hasOwn(STATUS_EFFECT_TYPES, type) || !Number.isFinite(value)) {
+          throw new Error("Status effect contains an invalid type, characteristic, or value.");
         }
         return {
           id: effect.dataset.statusEffectId,
           characteristic,
-          modifier: Math.trunc(modifier),
-          advantage: clamp(Math.trunc(advantage), 0, MAX_ADVANTAGE_HINDRANCE),
-          hindrance: clamp(Math.trunc(hindrance), 0, MAX_ADVANTAGE_HINDRANCE)
+          type,
+          value: type === "dice"
+            ? Math.trunc(value)
+            : clamp(Math.trunc(value), 0, MAX_ADVANTAGE_HINDRANCE)
         };
       });
       foundry.utils.setProperty(updates, "system.active", activeField?.checked ?? true);
@@ -1097,7 +1112,20 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
       npc: {
         attackDice: clamp(npc.attackDice ?? 0, 0, 99),
         defenseDice: clamp(npc.defenseDice ?? 0, 0, 99),
-        abilities: Array.isArray(npc.abilities) ? npc.abilities : []
+        abilities: Array.isArray(npc.abilities) ? npc.abilities : [],
+        statuses: (Array.isArray(npc.statuses) ? npc.statuses : []).map((status, index) => ({
+          ...status,
+          id: status.id ?? `npc-status-${index}`,
+          active: status.active !== false,
+          effects: (Array.isArray(status.effects) ? status.effects : []).map((effect, effectIndex) => ({
+            ...effect,
+            id: effect.id ?? `npc-status-${index}-effect-${effectIndex}`,
+            target: ["attack", "defense"].includes(effect.target) ? effect.target : "attack",
+            isAttack: effect.target !== "defense",
+            isDefense: effect.target === "defense",
+            modifier: Number.isFinite(Number(effect.modifier)) ? Math.trunc(Number(effect.modifier)) : 0
+          }))
+        }))
       }
     };
   }
@@ -1133,12 +1161,36 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
         }
       });
     });
+    this.element.querySelectorAll("[data-npc-status-field]").forEach((field) => {
+      field.addEventListener("change", async () => {
+        try {
+          await this.#saveStatuses();
+        } catch (error) {
+          console.error("Vitruvium NPC status update failed.", error);
+          ui.notifications.error("Не удалось сохранить статус НПС.");
+        }
+      });
+    });
+    this.element.querySelectorAll("[data-npc-status-effect-field]").forEach((field) => {
+      field.addEventListener("change", async () => {
+        try {
+          await this.#saveStatuses();
+        } catch (error) {
+          console.error("Vitruvium NPC status effect update failed.", error);
+          ui.notifications.error("Не удалось сохранить эффект статуса НПС.");
+        }
+      });
+    });
     this.element.querySelectorAll("[data-npc-action]").forEach((button) => {
       button.addEventListener("click", async (event) => {
         event.preventDefault();
         try {
           if (button.dataset.npcAction === "add-ability") return await this.#addAbility();
           if (button.dataset.npcAction === "delete-ability") return await this.#deleteAbility(button.dataset.abilityId);
+          if (button.dataset.npcAction === "add-status") return await this.#addStatus();
+          if (button.dataset.npcAction === "delete-status") return await this.#deleteStatus(button.dataset.statusId);
+          if (button.dataset.npcAction === "add-status-effect") return await this.#addStatusEffect(button.dataset.statusId);
+          if (button.dataset.npcAction === "delete-status-effect") return await this.#deleteStatusEffect(button.dataset.statusId, button.dataset.effectId);
           if (button.dataset.npcAction === "roll") return await this.#roll(button);
         } catch (error) {
           console.error("Vitruvium NPC action failed.", error);
@@ -1161,6 +1213,54 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
     return this.render();
   }
 
+  #collectStatuses() {
+    return [...this.element.querySelectorAll("[data-npc-status-id]")].map((card) => ({
+      id: card.dataset.npcStatusId,
+      name: card.querySelector("[data-npc-status-field='name']")?.value.trim() || "Статус",
+      description: card.querySelector("[data-npc-status-field='description']")?.value ?? "",
+      active: card.querySelector("[data-npc-status-field='active']")?.checked ?? true,
+      effects: [...card.querySelectorAll("[data-npc-status-effect-id]")].map((effect) => ({
+        id: effect.dataset.npcStatusEffectId,
+        target: effect.querySelector("[data-npc-status-effect-field='target']")?.value === "defense" ? "defense" : "attack",
+        modifier: Math.trunc(clamp(effect.querySelector("[data-npc-status-effect-field='modifier']")?.value, -99, 99))
+      }))
+    }));
+  }
+
+  async #saveStatuses(statuses = this.#collectStatuses()) {
+    await this.actor.update({ "system.npc.statuses": statuses });
+  }
+
+  async #addStatus() {
+    const statuses = this.#collectStatuses();
+    statuses.push({ id: foundry.utils.randomID(), name: "Новый статус", description: "", active: true, effects: [] });
+    await this.#saveStatuses(statuses);
+    return this.render();
+  }
+
+  async #deleteStatus(id) {
+    await this.#saveStatuses(this.#collectStatuses().filter((status) => status.id !== id));
+    return this.render();
+  }
+
+  async #addStatusEffect(statusId) {
+    const statuses = this.#collectStatuses();
+    const status = statuses.find((entry) => entry.id === statusId);
+    if (!status) throw new Error(`NPC status ${statusId} was not found.`);
+    status.effects.push({ id: foundry.utils.randomID(), target: "attack", modifier: 0 });
+    await this.#saveStatuses(statuses);
+    return this.render();
+  }
+
+  async #deleteStatusEffect(statusId, effectId) {
+    const statuses = this.#collectStatuses();
+    const status = statuses.find((entry) => entry.id === statusId);
+    if (!status) throw new Error(`NPC status ${statusId} was not found.`);
+    status.effects = status.effects.filter((effect) => effect.id !== effectId);
+    await this.#saveStatuses(statuses);
+    return this.render();
+  }
+
   async #roll(button) {
     const target = button.dataset.target;
     if (!["attack", "defense"].includes(target)) return;
@@ -1168,14 +1268,16 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
     const ability = npc.abilities?.find((entry) => entry.id === button.dataset.abilityId);
     const baseDice = clamp(target === "attack" ? npc.attackDice ?? 0 : npc.defenseDice ?? 0, 0, 99);
     const bonusDice = ability ? clamp(ability.bonusDice, 0, 99) : 0;
-    const dice = baseDice + bonusDice;
+    const statusModifier = getNpcStatusModifier(npc, target);
+    const dice = clamp(baseDice + bonusDice + statusModifier, 0, 99);
     const roll = await (new Roll(`${dice}d6`)).evaluate();
     if (diceSoNiceModelRegistered) roll.options.appearance = { system: SYSTEM_ID };
     const results = (roll.dice[0]?.results ?? []).map((result) => dieSuccess(result.result));
     const successes = results.reduce((total, result) => total + result, 0);
     const label = target === "attack" ? "Атака" : "Защита";
     const abilityLabel = ability ? `Способность: ${escapeHtml(ability.name)}` : "Базовый бросок";
-    const content = `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>${label} НПС</h3><span class="roll-character">${escapeHtml(this.actor.name)}</span></div></header><div class="roll-summary"><span><small>${abilityLabel}</small><b>${baseDice}+${bonusDice}=${dice}d6</b></span></div><ol><li class="chosen"><span>Кубики</span><span class="roll-values">${results.map((result) => `${result} ${successLabel(result)}`).join(", ")}</span><b>${successes} ${successLabel(successes)}</b></li></ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer></section>`;
+    const statusLabel = statusModifier ? ` ${statusModifier > 0 ? "+" : "−"}${Math.abs(statusModifier)} от статусов` : "";
+    const content = `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>${label} НПС</h3><span class="roll-character">${escapeHtml(this.actor.name)}</span></div></header><div class="roll-summary"><span><small>${abilityLabel}</small><b>${baseDice}+${bonusDice}${statusLabel}=${dice}d6</b></span></div><ol><li class="chosen"><span>Кубики</span><span class="roll-values">${results.map((result) => `${result} ${successLabel(result)}`).join(", ")}</span><b>${successes} ${successLabel(successes)}</b></li></ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer></section>`;
     return ChatMessage.create({ content, speaker: ChatMessage.getSpeaker({ actor: this.actor }), rolls: [roll] });
   }
 }
@@ -1294,7 +1396,8 @@ Hooks.on("preCreateActor", (actor) => {
     actor.updateSource({ system: { npc: {
       attackDice: npc.attackDice ?? 0,
       defenseDice: npc.defenseDice ?? 0,
-      abilities: npc.abilities ?? []
+      abilities: npc.abilities ?? [],
+      statuses: npc.statuses ?? []
     } } });
     return;
   }

@@ -34,4 +34,37 @@
       {{/each}}
     </div>
   </section>
+  <section class="npc-statuses">
+    <header><h2>Статусы</h2><button type="button" data-npc-action="add-status">Добавить статус</button></header>
+    <div class="npc-status-list">
+      {{#each npc.statuses}}
+        <article class="npc-status" data-npc-status-id="{{id}}">
+          <div class="npc-status-heading">
+            <input type="text" data-npc-status-field="name" value="{{name}}" aria-label="Название статуса">
+            <label class="npc-status-active"><input type="checkbox" data-npc-status-field="active" {{#if active}}checked{{/if}}>Активен</label>
+            <button type="button" data-npc-action="delete-status" data-status-id="{{id}}">Удалить статус</button>
+          </div>
+          <textarea data-npc-status-field="description" aria-label="Описание статуса" placeholder="Описание">{{description}}</textarea>
+          <div class="npc-status-effects">
+            <b>Эффекты атаки и защиты</b>
+            {{#each effects}}
+              <div class="npc-status-effect" data-npc-status-effect-id="{{id}}">
+                <label>Цель
+                  <select data-npc-status-effect-field="target">
+                    <option value="attack" {{#if isAttack}}selected{{/if}}>Атака</option>
+                    <option value="defense" {{#if isDefense}}selected{{/if}}>Защита</option>
+                  </select>
+                </label>
+                <label>Изменение кубов<input type="number" min="-99" max="99" step="1" data-npc-status-effect-field="modifier" value="{{modifier}}"></label>
+                <button type="button" data-npc-action="delete-status-effect" data-status-id="{{../id}}" data-effect-id="{{id}}">Удалить эффект</button>
+              </div>
+            {{/each}}
+            <button type="button" data-npc-action="add-status-effect" data-status-id="{{id}}">Добавить эффект</button>
+          </div>
+        </article>
+      {{else}}
+        <p class="empty">Статусы не добавлены.</p>
+      {{/each}}
+    </div>
+  </section>
 </section>
