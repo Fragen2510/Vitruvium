@@ -14,6 +14,20 @@ const CHARACTERISTIC_KEYS = new Set(Object.keys(CHARACTERISTICS));
 const MAX_ADVANTAGE_HINDRANCE = 2;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
+const getBonusDieCount = ({ net, bonusDieMode }) => bonusDieMode && net ? Math.abs(net) : 1;
+const selectBonusDieResult = (results, net, bonusDieMode) => {
+  const selectedIndex = results.reduce((selected, result, index) => {
+    if (net > 0 && result > results[selected]) return index;
+    if (net < 0 && result < results[selected]) return index;
+    return selected;
+  }, 0);
+  return {
+    results,
+    selectedIndex,
+    successes: results[selectedIndex],
+    mode: bonusDieMode && net > 0 ? "best" : bonusDieMode && net < 0 ? "worst" : "single"
+  };
+};
 const getSetting = (key) => game.settings.get(SYSTEM_ID, key);
 const hasCustomImage = (image) => {
   const path = String(image ?? "").split("?")[0].toLowerCase();
@@ -71,22 +85,31 @@ async function registerDiceSoNiceModel(dice3d) {
 
 function renderRollCard(data) {
   const chosen = data.pools[data.chosenIndex];
-  const bonusSuccesses = data.bonusDice.reduce((total, result) => total + result, 0)
+  const bonusSuccesses = data.bonusDice.reduce((total, bonus) => total + (typeof bonus === "number" ? bonus : bonus.successes), 0)
     + data.domainSuccesses.reduce((total, result) => total + result.successes, 0);
   const successes = chosen.successes + bonusSuccesses;
   const rolls = data.pools.map((pool, index) => {
     const results = (pool.results ?? []).map((result) => `${result} ${successLabel(result)}`).join(", ") || "Значения кубиков не сохранены";
     return `<li${index === data.chosenIndex ? " class=\"chosen\"" : ""}><span>Бросок ${index + 1}</span><span class="roll-values">${results}</span><b>${pool.successes} ${successLabel(pool.successes)}</b></li>`;
   }).join("");
-  const bonusDiceSuccesses = data.bonusDice.reduce((total, result) => total + result, 0);
-  const bonusDice = data.bonusDice.length ? `<li class="bonus-roll"><span>Дополнительные d6: ${data.bonusDice.map((result) => `${result} ${successLabel(result)}`).join(", ")}</span><b>+${bonusDiceSuccesses} ${successLabel(bonusDiceSuccesses)}</b></li>` : "";
+  const bonusDice = data.bonusDice.map((bonus) => {
+    if (typeof bonus === "number") return `<li class="bonus-roll"><span>Дополнительный d6: ${bonus} ${successLabel(bonus)}</span><b>+${bonus} ${successLabel(bonus)}</b></li>`;
+    const label = bonus.mode === "best" ? "лучший" : bonus.mode === "worst" ? "худший" : "результат";
+    const results = bonus.results.map((result, index) => `${index === bonus.selectedIndex ? "[" : ""}${result} ${successLabel(result)}${index === bonus.selectedIndex ? "]" : ""}`).join(", ");
+    return `<li class="bonus-roll"><span>Дополнительный бросок (${label} из ${bonus.results.length}d6): ${results}</span><b>+${bonus.successes} ${successLabel(bonus.successes)}</b></li>`;
+  }).join("");
   const domainBonuses = data.domainSuccesses.map((result) => `<li class="bonus-roll"><span>${escapeHtml(result.name)} (уровень ${result.level})</span><b>+${result.successes} ${successLabel(result.successes)}</b></li>`).join("");
   const totalInspirationSpent = data.inspirationSpent + data.bonusDice.length + data.domainSuccesses.length;
   const inspiration = totalInspirationSpent ? `<span><small>Вдохновение</small><b>−${totalInspirationSpent}</b></span>` : "";
   const domainOptions = data.domains.length
     ? data.domains.map((domain) => `<option value="${escapeHtml(domain.id)}">${escapeHtml(domain.name)} (уровень ${domain.level}, +${domain.level})</option>`).join("")
     : `<option value="">Нет доменов</option>`;
-  const dieAction = `<div class="roll-action-group"><button type="button" data-vitruvium-roll-action="add-die">Добавить кубик</button><small>+1d6 за 1 вдохновение</small></div>`;
+  const bonusDieHint = data.bonusDieMode && data.net > 0
+    ? `1 вдохновение: бросить ${data.net}d6 и добавить лучший результат`
+    : data.bonusDieMode && data.net < 0
+      ? `1 вдохновение: бросить ${Math.abs(data.net)}d6 и добавить худший результат`
+      : "1 вдохновение: бросить 1d6 и добавить успехи";
+  const dieAction = `<div class="roll-action-group"><button type="button" data-vitruvium-roll-action="add-die">Добавить кубик</button><small>${bonusDieHint}</small></div>`;
   const domainAction = `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи</button><small>1 вдохновение добавляет успехи по уровню домена</small></label>`;
   const actions = `<div class="roll-actions">${dieAction}${domainAction}</div>`;
   const characteristicModifier = Number(data.characteristicModifier) || 0;
@@ -109,6 +132,7 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, statusAdvantage = 
   const totalAdvantage = clamp(Number(advantage) + Number(statusAdvantage), 0, MAX_ADVANTAGE_HINDRANCE);
   const totalHindrance = clamp(Number(hindrance) + Number(statusHindrance), 0, MAX_ADVANTAGE_HINDRANCE);
   const net = totalAdvantage - totalHindrance;
+  const bonusDieMode = getSetting("bonusDieUsesAdvantage");
   const attempts = Math.abs(net) + 1;
   const pools = [];
 
@@ -128,7 +152,7 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, statusAdvantage = 
   const mode = net > 0 ? `Преимущество ×${net}` : net < 0 ? `Помеха ×${Math.abs(net)}` : "Обычный бросок";
   const result = {
     actorUuid: actor?.uuid ?? null, character: actor?.name ?? speaker?.alias ?? "Без персонажа",
-    characteristic, characteristicModifier, statusAdvantage, statusHindrance,
+    characteristic, characteristicModifier, statusAdvantage, statusHindrance, net, bonusDieMode,
     baseDice: count, poolDice: poolSize, mode,
     inspirationSpent: spentInspiration, inspirationRemaining: availableInspiration - spentInspiration,
     pools: pools.map((pool) => ({ results: pool.results, successes: pool.successes })),
@@ -180,12 +204,16 @@ async function handleRollAction(event) {
     if (!actor?.isOwner || !availableInspiration) return;
     button.disabled = true;
     let bonusDieSuccesses = null;
+    let bonusDieResult = null;
     let bonusRoll = null;
     let domainBonus = null;
     if (action === "add-die") {
-      bonusRoll = await (new Roll("1d6")).evaluate();
+      const bonusDieCount = getBonusDieCount(data);
+      bonusRoll = await (new Roll(`${bonusDieCount}d6`)).evaluate();
       if (diceSoNiceModelRegistered) bonusRoll.options.appearance = { system: SYSTEM_ID };
-      bonusDieSuccesses = dieSuccess(bonusRoll.dice[0].results[0].result);
+      const results = bonusRoll.dice[0].results.map((result) => dieSuccess(result.result));
+      bonusDieResult = selectBonusDieResult(results, data.net, data.bonusDieMode);
+      bonusDieSuccesses = bonusDieResult.successes;
     } else {
       const domainId = button.closest(".roll-actions")?.querySelector("[data-roll-domain]")?.value;
       const domain = actor.items.get(domainId);
@@ -195,7 +223,7 @@ async function handleRollAction(event) {
     }
     await actor.update({ "system.inspiration": availableInspiration - 1 });
     data.inspirationRemaining = availableInspiration - 1;
-    if (bonusDieSuccesses !== null) data.bonusDice.push(bonusDieSuccesses);
+    if (bonusDieSuccesses !== null) data.bonusDice.push(bonusDieResult);
     if (domainBonus) data.domainSuccesses.push(domainBonus);
     try {
       if (bonusRoll && game.dice3d?.animateRoll) await game.dice3d.animateRoll(bonusRoll, message);
@@ -1190,6 +1218,15 @@ function registerSettings() {
   for (const [key, defaultValue, min, max, name] of settings) {
     game.settings.register(SYSTEM_ID, key, { name, scope: "world", config: true, type: Number, default: defaultValue, range: { min, max, step: 1 }, restricted: true, onChange: normalizeActorLimits });
   }
+  game.settings.register(SYSTEM_ID, "bonusDieUsesAdvantage", {
+    name: "Дополнительный кубик учитывает преимущество и помеху",
+    hint: "Если включено, действие за вдохновение бросает столько дополнительных d6, сколько осталось преимущества или помехи после взаимной компенсации, и прибавляет лучший или худший результат соответственно. Если выключено, бросается один дополнительный d6.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+    restricted: true
+  });
 }
 
 async function normalizeActorLimits() {
