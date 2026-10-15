@@ -59,7 +59,7 @@
         <header><h2>Статусы</h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="statuses" aria-label="Редактировать статусы">⋯</button></header>
         <div class="scroll-list">
           {{#each statuses}}
-            <article class="entity-card compact {{#if hasImage}}has-image{{/if}}">
+            <article class="entity-card compact status-card {{#if hasImage}}has-image{{/if}}">
               {{#if (lookup ../editingItems id)}}
                 <div class="entity-edit">
                   <input class="inline-edit" data-item-id="{{id}}" data-item-field="name" value="{{name}}" aria-label="Название статуса">
@@ -86,10 +86,10 @@
                 {{#if hasImage}}<img class="entity-image" src="{{img}}" alt="">{{/if}}
               {{else}}
                 {{#if hasImage}}<img class="entity-image" src="{{img}}" alt="">{{/if}}
-                <div class="entity-content"><b>{{name}}</b>
+                <div class="status-content"><b>{{name}}</b>
                   <small class="status-state">{{#if system.active}}Активен{{else}}Неактивен{{/if}}</small>
-                  {{#if ../editing.statuses}}<div class="form-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>{{/if}}
                 </div>
+                {{#if ../editing.statuses}}<div class="status-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>{{/if}}
                 {{#if system.description}}<details class="description-details"><summary>Описание</summary><p>{{system.description}}</p></details>{{/if}}
                 {{#if hasEffects}}
                   <details class="status-effect-details">
