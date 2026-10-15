@@ -178,6 +178,7 @@
 .vitruvium .status-effect label { display:grid; gap:4px; min-width:0; color:#b9c7d3; font-size:.78rem; overflow-wrap:anywhere; }
 .vitruvium .status-effect select, .vitruvium .status-effect input { box-sizing:border-box; width:100%; min-width:0; min-height:34px; padding:6px 8px; border:1px solid #465767; border-radius:7px; background:#111820; color:#edf3f8; font:inherit; }
 .vitruvium .status-effect button { justify-self:start; min-width:0; white-space:nowrap; }
+.vitruvium .status-effect-hint { color:#9fb0bf; font-size:.74rem; line-height:1.35; }
 .vitruvium .status-state { color:#9fb0bf; font-size:.78rem; }
 .vitruvium .status-effect-details { display:block; min-width:0; color:#b9c7d3; font-size:.82rem; }
 .vitruvium .status-effect-details > summary { width:fit-content; color:#dce6ef; cursor:pointer; }

@@ -11,6 +11,7 @@ const CHARACTERISTICS = {
   will: { label: "Воля" }
 };
 const CHARACTERISTIC_KEYS = new Set(Object.keys(CHARACTERISTICS));
+const MAX_ADVANTAGE_HINDRANCE = 2;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
 const getSetting = (key) => game.settings.get(SYSTEM_ID, key);
@@ -19,11 +20,21 @@ const hasCustomImage = (image) => {
   return Boolean(path) && !["icons/svg/mystery-man.svg", "icons/svg/item-bag.svg"].some((placeholder) => path.endsWith(placeholder));
 };
 const dieSuccess = (face) => (face === 6 ? 2 : face >= 4 ? 1 : 0);
-const getStatusCharacteristicModifier = (actor, key) => actor.items
-  .filter((item) => item.type === "status" && item.system.active !== false)
-  .flatMap((item) => Array.isArray(item.system.effects) ? item.system.effects : [])
-  .filter((effect) => effect.characteristic === key && Number.isFinite(Number(effect.modifier)))
-  .reduce((total, effect) => total + Number(effect.modifier), 0);
+const getStatusCharacteristicModifiers = (actor, key) => {
+  const effects = actor.items
+    .filter((item) => item.type === "status" && item.system.active !== false)
+    .flatMap((item) => Array.isArray(item.system.effects) ? item.system.effects : [])
+    .filter((effect) => effect.characteristic === key);
+  const sum = (field) => effects.reduce((total, effect) => {
+    const value = Number(effect[field]);
+    return total + (Number.isFinite(value) ? value : 0);
+  }, 0);
+  return {
+    modifier: sum("modifier"),
+    advantage: clamp(Math.trunc(sum("advantage")), 0, MAX_ADVANTAGE_HINDRANCE),
+    hindrance: clamp(Math.trunc(sum("hindrance")), 0, MAX_ADVANTAGE_HINDRANCE)
+  };
+};
 const successLabel = (count) => {
   const lastTwo = count % 100;
   if (lastTwo >= 11 && lastTwo <= 14) return "успехов";
@@ -79,21 +90,25 @@ function renderRollCard(data) {
   const domainAction = `<label class="domain-success-action"><span>Домен для успехов</span><select data-roll-domain>${domainOptions}</select><button type="button" data-vitruvium-roll-action="add-domain-success">Добавить успехи</button><small>1 вдохновение добавляет успехи по уровню домена</small></label>`;
   const actions = `<div class="roll-actions">${dieAction}${domainAction}</div>`;
   const characteristicModifier = Number(data.characteristicModifier) || 0;
-  const modifierLabel = characteristicModifier
-    ? ` (${characteristicModifier > 0 ? "+" : "−"}${Math.abs(characteristicModifier)} от статусов)`
-    : "";
+  const modifiers = [];
+  if (characteristicModifier) modifiers.push(`${characteristicModifier > 0 ? "+" : "−"}${Math.abs(characteristicModifier)} куб. от статусов`);
+  if (data.statusAdvantage) modifiers.push(`преимущество +${data.statusAdvantage} от статусов`);
+  if (data.statusHindrance) modifiers.push(`помеха +${data.statusHindrance} от статусов`);
+  const modifierLabel = modifiers.length ? ` (${modifiers.join("; ")})` : "";
   const characteristic = data.characteristic ? `<span><small>Характеристика</small><b>${escapeHtml(data.characteristic + modifierLabel)}</b></span>` : "";
   return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary">${characteristic}<span><small>Пул</small><b>${data.baseDice}+${data.inspirationSpent}=${data.poolDice}d6</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
 }
 
 /** Roll a special d6 pool. Each die yields 0, 1 or 2 successes. */
-async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, speaker, actor, characteristic, characteristicModifier = 0 }) {
+async function rollPool({ dice, advantage = 0, hindrance = 0, statusAdvantage = 0, statusHindrance = 0, inspiration = 0, speaker, actor, characteristic, characteristicModifier = 0 }) {
   const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
   const count = clamp(dice, 1, maxDice);
   const availableInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
   const spentInspiration = Math.min(clamp(inspiration, 0, availableInspiration), maxDice - count);
   const poolSize = count + spentInspiration;
-  const net = clamp(advantage, 0, 2) - clamp(hindrance, 0, 2);
+  const totalAdvantage = clamp(Number(advantage) + Number(statusAdvantage), 0, MAX_ADVANTAGE_HINDRANCE);
+  const totalHindrance = clamp(Number(hindrance) + Number(statusHindrance), 0, MAX_ADVANTAGE_HINDRANCE);
+  const net = totalAdvantage - totalHindrance;
   const attempts = Math.abs(net) + 1;
   const pools = [];
 
@@ -113,7 +128,7 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, inspiration = 0, s
   const mode = net > 0 ? `Преимущество ×${net}` : net < 0 ? `Помеха ×${Math.abs(net)}` : "Обычный бросок";
   const result = {
     actorUuid: actor?.uuid ?? null, character: actor?.name ?? speaker?.alias ?? "Без персонажа",
-    characteristic, characteristicModifier,
+    characteristic, characteristicModifier, statusAdvantage, statusHindrance,
     baseDice: count, poolDice: poolSize, mode,
     inspirationSpent: spentInspiration, inspirationRemaining: availableInspiration - spentInspiration,
     pools: pools.map((pool) => ({ results: pool.results, successes: pool.successes })),
@@ -379,6 +394,8 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
           id: effect.id ?? `status-effect-${index}`,
           modifier,
           modifierText: modifier > 0 ? `+${modifier}` : String(modifier),
+          advantage: clamp(Math.trunc(Number(effect.advantage) || 0), 0, MAX_ADVANTAGE_HINDRANCE),
+          hindrance: clamp(Math.trunc(Number(effect.hindrance) || 0), 0, MAX_ADVANTAGE_HINDRANCE),
           characteristicLabel: CHARACTERISTICS[effect.characteristic]?.label ?? "Характеристика",
           characteristicOptions: Object.entries(CHARACTERISTICS).map(([key, characteristic]) => ({
             key, label: characteristic.label, selected: effect.characteristic === key
@@ -397,11 +414,15 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
     const characteristics = Object.fromEntries(Object.entries(CHARACTERISTICS).map(([key, characteristic]) => {
       const value = Number(this.actor.system.characteristics?.[key]?.value ?? 1);
-      const modifier = getStatusCharacteristicModifier(this.actor, key);
+      const statusModifiers = getStatusCharacteristicModifiers(this.actor, key);
+      const { modifier, advantage, hindrance } = statusModifiers;
       return [key, {
         ...characteristic,
         modifier,
         modifierText: modifier > 0 ? `+${modifier}` : String(modifier),
+        advantage,
+        hindrance,
+        hasRollModifiers: Boolean(modifier || advantage || hindrance),
         total: clamp(value + modifier, 1, maxDice)
       }];
     }));
@@ -562,11 +583,14 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     if (trayRollButton) trayRollButton.disabled = true;
     try {
       const speaker = ChatMessage.getSpeaker({ actor: this.actor });
-      const characteristicModifier = getStatusCharacteristicModifier(this.actor, key);
+      const statusModifiers = getStatusCharacteristicModifiers(this.actor, key);
+      const { modifier: characteristicModifier, advantage: statusAdvantage, hindrance: statusHindrance } = statusModifiers;
       await rollPool({
         dice: (this.actor.system.characteristics?.[key]?.value ?? 1) + characteristicModifier,
         advantage: trayState.advantage,
         hindrance: trayState.hindrance,
+        statusAdvantage,
+        statusHindrance,
         inspiration: trayState.inspiration,
         speaker,
         actor: this.actor,
@@ -611,6 +635,22 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     modifierInput.dataset.statusEffectField = "modifier";
     modifierLabel.append(modifierInput);
 
+    const createLimitInput = (field, labelText) => {
+      const label = document.createElement("label");
+      label.textContent = labelText;
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = "0";
+      input.max = String(MAX_ADVANTAGE_HINDRANCE);
+      input.step = "1";
+      input.value = "0";
+      input.dataset.statusEffectField = field;
+      label.append(input);
+      return label;
+    };
+    const advantageLabel = createLimitInput("advantage", `Преимущество (0–${MAX_ADVANTAGE_HINDRANCE})`);
+    const hindranceLabel = createLimitInput("hindrance", `Помеха (0–${MAX_ADVANTAGE_HINDRANCE})`);
+
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.dataset.vitruviumAction = "remove-status-effect";
@@ -619,7 +659,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       clickEvent.preventDefault();
       effect.remove();
     });
-    effect.append(characteristicLabel, modifierLabel, removeButton);
+    effect.append(characteristicLabel, modifierLabel, advantageLabel, hindranceLabel, removeButton);
     effectList.append(effect);
   }
 
@@ -683,10 +723,21 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         const characteristic = effect.querySelector("[data-status-effect-field='characteristic']")?.value;
         const modifierValue = effect.querySelector("[data-status-effect-field='modifier']")?.value;
         const modifier = Number(modifierValue);
+        const advantage = Number(effect.querySelector("[data-status-effect-field='advantage']")?.value ?? 0);
+        const hindrance = Number(effect.querySelector("[data-status-effect-field='hindrance']")?.value ?? 0);
         if (!CHARACTERISTIC_KEYS.has(characteristic) || !Number.isFinite(modifier)) {
           throw new Error("Status effect contains an invalid characteristic modifier.");
         }
-        return { id: effect.dataset.statusEffectId, characteristic, modifier: Math.trunc(modifier) };
+        if (!Number.isFinite(advantage) || !Number.isFinite(hindrance)) {
+          throw new Error("Status effect contains an invalid advantage or hindrance value.");
+        }
+        return {
+          id: effect.dataset.statusEffectId,
+          characteristic,
+          modifier: Math.trunc(modifier),
+          advantage: clamp(Math.trunc(advantage), 0, MAX_ADVANTAGE_HINDRANCE),
+          hindrance: clamp(Math.trunc(hindrance), 0, MAX_ADVANTAGE_HINDRANCE)
+        };
       });
       foundry.utils.setProperty(updates, "system.active", activeField?.checked ?? true);
       foundry.utils.setProperty(updates, "system.effects", effects);
