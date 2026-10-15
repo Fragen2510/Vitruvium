@@ -124,6 +124,11 @@
                 </div>
               {{/if}}
               {{#unless (lookup ../editingItems id)}}{{#if system.description}}<details class="description-details"><summary>Описание</summary><p>{{system.description}}</p></details>{{/if}}{{/unless}}
+              {{#if (lookup ../editingItems id)}}
+                <div class="form-actions"><button type="button" data-vitruvium-action="save-item" data-item-id="{{id}}">Сохранить</button><button type="button" data-vitruvium-action="cancel-item" data-item-id="{{id}}">Отмена</button><button type="button" class="delete-card" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить домен</button></div>
+              {{else}}
+                {{#if ../editing.domains}}<div class="form-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" class="delete-card" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить домен</button></div>{{/if}}
+              {{/if}}
               <div class="ability-list">
                 {{#each abilities}}
                   <div class="ability-item {{#if hasImage}}has-image{{/if}}">
@@ -146,11 +151,6 @@
                 {{else}}<p class="empty">Способностей нет.</p>{{/each}}
               </div>
               {{#if ../editing.domains}}<button type="button" class="add-card small" data-vitruvium-action="create-ability" data-domain-id="{{id}}">Добавить способность</button>{{/if}}
-              {{#if (lookup ../editingItems id)}}
-                <div class="form-actions"><button type="button" data-vitruvium-action="save-item" data-item-id="{{id}}">Сохранить</button><button type="button" data-vitruvium-action="cancel-item" data-item-id="{{id}}">Отмена</button><button type="button" class="delete-card" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить домен</button></div>
-              {{else}}
-                {{#if ../editing.domains}}<div class="form-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" class="delete-card" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить домен</button></div>{{/if}}
-              {{/if}}
             </article>
           {{else}}<p class="empty">Домены не добавлены.</p>{{/each}}
           {{#if editing.domains}}<button type="button" class="add-card" data-vitruvium-action="create-item" data-type="domain">Добавить домен</button>{{/if}}

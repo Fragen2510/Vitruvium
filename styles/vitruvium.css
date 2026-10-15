@@ -59,9 +59,8 @@
 .vitruvium .resource-card { display:flex; justify-content:space-between; align-items:center; padding:12px; border-radius:9px; background:#232d38; }
 .vitruvium .resource-card > div:first-child { display:grid; gap:2px; }
 .vitruvium .resource-card small { color:#8fa3b5; }
-.vitruvium .add-card, .delete-card { padding:8px 10px; border-radius:7px; font-weight:600; }
+.vitruvium .add-card { padding:8px 10px; border-radius:7px; font-weight:600; }
 .vitruvium .add-card.small { padding:6px; }
-.vitruvium .delete-card { color:#e58a8a; background:#301b20; border-color:#6d3b42; }
 .vitruvium .empty, .vitruvium .hint { margin:0; color:#9aa8b5; font-size:.8rem; }
 .vitruvium .aspect-manager-body { min-height:100%; padding:8px; background:#151b21; }
 .vitruvium .aspect-manager-body header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
@@ -536,7 +535,6 @@
 .vitruvium .npc-ability-bonus > small { color:#9fb0bf; }
 .vitruvium .npc-ability-actions { display:flex; flex-wrap:wrap; gap:6px; }
 .vitruvium .npc-ability-actions button { white-space:nowrap; }
-.vitruvium .npc-ability-actions .npc-delete-ability { color:#e58a8a; background:#301b20; border-color:#6d3b42; }
 @media (max-width:720px) {
   .vitruvium .npc-stats { grid-template-columns:minmax(0,1fr); }
   .vitruvium .npc-ability { grid-template-columns:minmax(0,1fr) 90px; }
@@ -545,3 +543,39 @@
 .vitruvium.item .item-header { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
 .vitruvium.item .item-image-actions { display:flex; flex-wrap:wrap; gap:6px; min-width:0; }
 .vitruvium.item .item-header > .name { flex:1 1 180px; min-width:0; }
+
+.vitruvium .possession-card > .description-details { grid-column:1 / -1; width:100%; }
+
+.vitruvium.sheet button,
+.vitruvium.aspect-manager button {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  min-height:32px; padding:6px 10px; border:1px solid #465767; border-radius:7px;
+  background:#263441; color:#edf3f8; font:inherit; font-size:.82rem; font-weight:600;
+  line-height:1.2; text-align:center; cursor:pointer;
+  transition:background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.vitruvium.sheet button:hover,
+.vitruvium.aspect-manager button:hover {
+  border-color:#f0a84a; background:#303a45; color:#fff;
+}
+.vitruvium.sheet button:focus-visible,
+.vitruvium.aspect-manager button:focus-visible {
+  outline:2px solid #f0a84a; outline-offset:2px;
+}
+.vitruvium.sheet button:disabled,
+.vitruvium.aspect-manager button:disabled {
+  opacity:.5; cursor:not-allowed;
+}
+.vitruvium.sheet .add-card {
+  min-height:32px; border-style:solid; background:#263441; color:#edf3f8;
+}
+.vitruvium.sheet .image-button,
+.vitruvium.aspect-manager .image-button {
+  min-height:32px; padding:6px 10px; border:1px solid #465767; border-radius:7px;
+  background:#263441; color:#edf3f8; font:inherit; font-size:.82rem; font-weight:600;
+  line-height:1.2; text-align:center; transition:background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.vitruvium.sheet .image-button:hover,
+.vitruvium.aspect-manager .image-button:hover {
+  border-color:#f0a84a; background:#303a45; color:#fff;
+}

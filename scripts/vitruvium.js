@@ -621,15 +621,30 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     const onTokenized = (result) => {
       void (async () => {
         const avatar = result?.avatarFilename;
-        if (typeof avatar !== "string" || !avatar) {
-          throw new Error("Tokenizer did not return an avatar path.");
+        const token = result?.tokenFilename;
+        if (typeof avatar !== "string" || !avatar || typeof token !== "string" || !token) {
+          throw new Error("Tokenizer did not return both avatar and token paths.");
         }
-        const image = `${avatar.split("?")[0]}?${Date.now()}`;
-        await actor.update({ img: image });
+        const cacheTag = Date.now();
+        const avatarPath = `${avatar.split("?")[0]}?${cacheTag}`;
+        const tokenPath = `${token.split("?")[0]}?${cacheTag}`;
+        await actor.update({
+          img: avatarPath,
+          "prototypeToken.texture.src": tokenPath,
+          "prototypeToken.randomImg": false
+        });
+        if (canvas.ready && canvas.scene) {
+          const tokenUpdates = actor.getActiveTokens(true).map((activeToken) => ({
+            _id: activeToken.id,
+            texture: { src: tokenPath },
+            randomImg: false
+          }));
+          if (tokenUpdates.length) await canvas.scene.updateEmbeddedDocuments("Token", tokenUpdates);
+        }
         await this.render();
       })().catch((error) => {
-        console.error("Vitruvium Tokenizer portrait update failed.", error);
-        ui.notifications.error("Не удалось сохранить портрет из Tokenizer.");
+        console.error("Vitruvium Tokenizer image update failed.", error);
+        ui.notifications.error("Не удалось сохранить изображения персонажа из Tokenizer.");
       });
     };
 
