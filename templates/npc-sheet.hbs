@@ -55,7 +55,14 @@
                     <option value="defense" {{#if isDefense}}selected{{/if}}>Защита</option>
                   </select>
                 </label>
-                <label>Изменение кубов<input type="number" min="-99" max="99" step="1" data-npc-status-effect-field="modifier" value="{{modifier}}"></label>
+                <label>Тип эффекта
+                  <select data-npc-status-effect-field="type">
+                    <option value="dice" {{#if isDice}}selected{{/if}}>Изменение кубов</option>
+                    <option value="advantage" {{#if isAdvantage}}selected{{/if}}>Преимущество</option>
+                    <option value="hindrance" {{#if isHindrance}}selected{{/if}}>Помеха</option>
+                  </select>
+                </label>
+                <label>Значение<input type="number" min="{{minModifier}}" max="{{maxModifier}}" step="1" data-npc-status-effect-field="modifier" value="{{modifier}}"></label>
                 <button type="button" data-npc-action="delete-status-effect" data-status-id="{{../id}}" data-effect-id="{{id}}">Удалить эффект</button>
               </div>
             {{/each}}

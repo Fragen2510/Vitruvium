@@ -55,11 +55,20 @@ const getStatusCharacteristicModifiers = (actor, key) => {
     hindrance: clamp(Math.trunc(sum("hindrance")), 0, MAX_ADVANTAGE_HINDRANCE)
   };
 };
-const getNpcStatusModifier = (npc, target) => (Array.isArray(npc?.statuses) ? npc.statuses : [])
-  .filter((status) => status.active !== false)
-  .flatMap((status) => Array.isArray(status.effects) ? status.effects : [])
-  .filter((effect) => effect.target === target && Number.isFinite(Number(effect.modifier)))
-  .reduce((total, effect) => total + Number(effect.modifier), 0);
+const getNpcStatusModifiers = (npc, target) => {
+  const effects = (Array.isArray(npc?.statuses) ? npc.statuses : [])
+    .filter((status) => status.active !== false)
+    .flatMap((status) => Array.isArray(status.effects) ? status.effects : [])
+    .filter((effect) => effect.target === target && Number.isFinite(Number(effect.modifier)));
+  const sum = (type) => effects
+    .filter((effect) => (effect.type ?? "dice") === type)
+    .reduce((total, effect) => total + Math.trunc(Number(effect.modifier)), 0);
+  return {
+    dice: sum("dice"),
+    advantage: clamp(sum("advantage"), 0, MAX_ADVANTAGE_HINDRANCE),
+    hindrance: clamp(sum("hindrance"), 0, MAX_ADVANTAGE_HINDRANCE)
+  };
+};
 const successLabel = (count) => {
   const lastTwo = count % 100;
   if (lastTwo >= 11 && lastTwo <= 14) return "успехов";
@@ -1117,14 +1126,28 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
           ...status,
           id: status.id ?? `npc-status-${index}`,
           active: status.active !== false,
-          effects: (Array.isArray(status.effects) ? status.effects : []).map((effect, effectIndex) => ({
-            ...effect,
-            id: effect.id ?? `npc-status-${index}-effect-${effectIndex}`,
-            target: ["attack", "defense"].includes(effect.target) ? effect.target : "attack",
-            isAttack: effect.target !== "defense",
-            isDefense: effect.target === "defense",
-            modifier: Number.isFinite(Number(effect.modifier)) ? Math.trunc(Number(effect.modifier)) : 0
-          }))
+          effects: (Array.isArray(status.effects) ? status.effects : []).map((effect, effectIndex) => {
+            const type = ["dice", "advantage", "hindrance"].includes(effect.type) ? effect.type : "dice";
+            const target = ["attack", "defense"].includes(effect.target) ? effect.target : "attack";
+            return {
+              ...effect,
+              id: effect.id ?? `npc-status-${index}-effect-${effectIndex}`,
+              type,
+              target,
+              isAttack: target === "attack",
+              isDefense: target === "defense",
+              isDice: type === "dice",
+              isAdvantage: type === "advantage",
+              isHindrance: type === "hindrance",
+              minModifier: type === "dice" ? -99 : 0,
+              maxModifier: type === "dice" ? 99 : MAX_ADVANTAGE_HINDRANCE,
+              modifier: Math.trunc(clamp(
+                Number.isFinite(Number(effect.modifier)) ? Number(effect.modifier) : 0,
+                type === "dice" ? -99 : 0,
+                type === "dice" ? 99 : MAX_ADVANTAGE_HINDRANCE
+              ))
+            };
+          })
         }))
       }
     };
@@ -1173,6 +1196,15 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
     });
     this.element.querySelectorAll("[data-npc-status-effect-field]").forEach((field) => {
       field.addEventListener("change", async () => {
+        if (field.dataset.npcStatusEffectField === "type") {
+          const valueField = field.closest(".npc-status-effect")?.querySelector("[data-npc-status-effect-field='modifier']");
+          const limitedEffect = ["advantage", "hindrance"].includes(field.value);
+          if (valueField) {
+            valueField.min = limitedEffect ? "0" : "-99";
+            valueField.max = limitedEffect ? String(MAX_ADVANTAGE_HINDRANCE) : "99";
+            valueField.value = String(Math.trunc(clamp(valueField.value, limitedEffect ? 0 : -99, limitedEffect ? MAX_ADVANTAGE_HINDRANCE : 99)));
+          }
+        }
         try {
           await this.#saveStatuses();
         } catch (error) {
@@ -1219,11 +1251,17 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
       name: card.querySelector("[data-npc-status-field='name']")?.value.trim() || "Статус",
       description: card.querySelector("[data-npc-status-field='description']")?.value ?? "",
       active: card.querySelector("[data-npc-status-field='active']")?.checked ?? true,
-      effects: [...card.querySelectorAll("[data-npc-status-effect-id]")].map((effect) => ({
-        id: effect.dataset.npcStatusEffectId,
-        target: effect.querySelector("[data-npc-status-effect-field='target']")?.value === "defense" ? "defense" : "attack",
-        modifier: Math.trunc(clamp(effect.querySelector("[data-npc-status-effect-field='modifier']")?.value, -99, 99))
-      }))
+      effects: [...card.querySelectorAll("[data-npc-status-effect-id]")].map((effect) => {
+        const typeField = effect.querySelector("[data-npc-status-effect-field='type']");
+        const type = ["dice", "advantage", "hindrance"].includes(typeField?.value) ? typeField.value : "dice";
+        const value = effect.querySelector("[data-npc-status-effect-field='modifier']")?.value;
+        return {
+          id: effect.dataset.npcStatusEffectId,
+          target: effect.querySelector("[data-npc-status-effect-field='target']")?.value === "defense" ? "defense" : "attack",
+          type,
+          modifier: Math.trunc(clamp(value, ["advantage", "hindrance"].includes(type) ? 0 : -99, ["advantage", "hindrance"].includes(type) ? MAX_ADVANTAGE_HINDRANCE : 99))
+        };
+      })
     }));
   }
 
@@ -1247,7 +1285,7 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
     const statuses = this.#collectStatuses();
     const status = statuses.find((entry) => entry.id === statusId);
     if (!status) throw new Error(`NPC status ${statusId} was not found.`);
-    status.effects.push({ id: foundry.utils.randomID(), target: "attack", modifier: 0 });
+    status.effects.push({ id: foundry.utils.randomID(), target: "attack", type: "dice", modifier: 0 });
     await this.#saveStatuses(statuses);
     return this.render();
   }
@@ -1268,17 +1306,28 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
     const ability = npc.abilities?.find((entry) => entry.id === button.dataset.abilityId);
     const baseDice = clamp(target === "attack" ? npc.attackDice ?? 0 : npc.defenseDice ?? 0, 0, 99);
     const bonusDice = ability ? clamp(ability.bonusDice, 0, 99) : 0;
-    const statusModifier = getNpcStatusModifier(npc, target);
-    const dice = clamp(baseDice + bonusDice + statusModifier, 0, 99);
-    const roll = await (new Roll(`${dice}d6`)).evaluate();
-    if (diceSoNiceModelRegistered) roll.options.appearance = { system: SYSTEM_ID };
-    const results = (roll.dice[0]?.results ?? []).map((result) => dieSuccess(result.result));
-    const successes = results.reduce((total, result) => total + result, 0);
+    const statusModifiers = getNpcStatusModifiers(npc, target);
+    const dice = clamp(baseDice + bonusDice + statusModifiers.dice, 0, 99);
+    const net = statusModifiers.advantage - statusModifiers.hindrance;
+    const pools = [];
+    for (let index = 0; index < Math.abs(net) + 1; index += 1) {
+      const roll = await (new Roll(`${dice}d6`)).evaluate();
+      if (diceSoNiceModelRegistered) roll.options.appearance = { system: SYSTEM_ID };
+      const results = (roll.dice[0]?.results ?? []).map((result) => dieSuccess(result.result));
+      pools.push({ roll, results, successes: results.reduce((total, result) => total + result, 0) });
+    }
+    const chosen = pools.reduce((selected, pool) => {
+      if (net > 0) return pool.successes > selected.successes ? pool : selected;
+      if (net < 0) return pool.successes < selected.successes ? pool : selected;
+      return selected;
+    });
+    const mode = net > 0 ? `Преимущество ×${net}` : net < 0 ? `Помеха ×${Math.abs(net)}` : "Обычный бросок";
     const label = target === "attack" ? "Атака" : "Защита";
     const abilityLabel = ability ? `Способность: ${escapeHtml(ability.name)}` : "Базовый бросок";
-    const statusLabel = statusModifier ? ` ${statusModifier > 0 ? "+" : "−"}${Math.abs(statusModifier)} от статусов` : "";
-    const content = `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>${label} НПС</h3><span class="roll-character">${escapeHtml(this.actor.name)}</span></div></header><div class="roll-summary"><span><small>${abilityLabel}</small><b>${baseDice}+${bonusDice}${statusLabel}=${dice}d6</b></span></div><ol><li class="chosen"><span>Кубики</span><span class="roll-values">${results.map((result) => `${result} ${successLabel(result)}`).join(", ")}</span><b>${successes} ${successLabel(successes)}</b></li></ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer></section>`;
-    return ChatMessage.create({ content, speaker: ChatMessage.getSpeaker({ actor: this.actor }), rolls: [roll] });
+    const statusLabel = statusModifiers.dice ? ` ${statusModifiers.dice > 0 ? "+" : "−"}${Math.abs(statusModifiers.dice)} от статусов` : "";
+    const poolRows = pools.map((pool, index) => `<li${pool === chosen ? " class=\"chosen\"" : ""}><span>Бросок ${index + 1}</span><span class="roll-values">${pool.results.map((result) => `${result} ${successLabel(result)}`).join(", ") || "Нет кубиков"}</span><b>${pool.successes} ${successLabel(pool.successes)}</b></li>`).join("");
+    const content = `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>${label} НПС</h3><span class="roll-character">${escapeHtml(this.actor.name)}</span></div><span class="roll-mode">${mode}</span></header><div class="roll-summary"><span><small>${abilityLabel}</small><b>${baseDice}+${bonusDice}${statusLabel}=${dice}d6</b></span></div><ol>${poolRows}</ol><footer><span>Итог</span><strong>${chosen.successes} ${successLabel(chosen.successes)}</strong></footer></section>`;
+    return ChatMessage.create({ content, speaker: ChatMessage.getSpeaker({ actor: this.actor }), rolls: pools.map((pool) => pool.roll) });
   }
 }
 
