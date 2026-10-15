@@ -222,6 +222,13 @@
                 <div class="relationship-edit">
                   <input class="inline-edit" data-relationship-id="{{id}}" data-relationship-field="name" value="{{name}}" aria-label="Название отношения">
                   <textarea class="inline-edit" data-relationship-id="{{id}}" data-relationship-field="description" aria-label="Описание отношения">{{description}}</textarea>
+                  <div class="relationship-status-editor">
+                    <b>Статусы</b>
+                    <div class="relationship-status-list">
+                      {{#each statuses}}<div class="relationship-status-row"><input type="text" data-relationship-status value="{{this}}" aria-label="Статус отношения"><button type="button" data-vitruvium-action="remove-relationship-status">Удалить</button></div>{{/each}}
+                    </div>
+                    <button type="button" data-vitruvium-action="add-relationship-status">Добавить статус</button>
+                  </div>
                 </div>
                 <label class="relationship-edit-value">Уровень<input class="inline-edit" data-relationship-id="{{id}}" data-relationship-field="value" type="number" min="{{relationshipMin}}" max="{{relationshipMax}}" value="{{value}}" aria-label="Уровень отношения"></label>
                 <div class="relationship-edit-actions form-actions">
@@ -231,7 +238,9 @@
                 </div>
               {{else}}
                 {{#if hasImage}}<img class="relationship-portrait" src="{{portrait}}" alt="">{{/if}}
-                <div class="relationship-content"><b>{{name}}</b></div>
+                <div class="relationship-content"><b>{{name}}</b>
+                  {{#if statuses.length}}<ul class="relationship-statuses">{{#each statuses}}<li>{{this}}</li>{{/each}}</ul>{{/if}}
+                </div>
                 <div class="relationship-level"><button type="button" data-vitruvium-action="adjust-relationship" data-id="{{id}}" data-delta="-1" aria-label="Уменьшить уровень отношения">−</button><strong>{{value}}</strong><button type="button" data-vitruvium-action="adjust-relationship" data-id="{{id}}" data-delta="1" aria-label="Увеличить уровень отношения">+</button></div>
                 {{#if ../editing.relationships}}<div class="form-actions"><button type="button" data-vitruvium-action="toggle-edit" data-section="relationships">Изменить</button><button type="button" data-vitruvium-action="remove-relationship" data-id="{{id}}">Удалить</button></div>{{/if}}
                 {{#if description}}<details class="description-details"><summary>Описание</summary><p>{{description}}</p></details>{{/if}}

@@ -217,6 +217,16 @@
 .vitruvium .relationship-portrait { grid-column:1; grid-row:1; width:58px; height:58px; border:1px solid #40505f; background:#18212a; }
 .vitruvium .relationship-content, .vitruvium .relationship-edit { grid-column:2; min-width:0; }
 .vitruvium .relationship-content p { white-space:pre-wrap; overflow-wrap:anywhere; }
+.vitruvium .relationship-content { display:grid; gap:6px; }
+.vitruvium .relationship-statuses { display:flex; flex-wrap:wrap; gap:5px; min-width:0; margin:0; padding:0; list-style:none; }
+.vitruvium .relationship-statuses li { max-width:100%; padding:3px 7px; border:1px solid #465767; border-radius:999px; background:#1b2732; color:#dce6ef; font-size:.76rem; overflow-wrap:anywhere; }
+.vitruvium .relationship-status-editor { display:grid; gap:6px; min-width:0; }
+.vitruvium .relationship-status-editor > b { color:#dce6ef; font-size:.82rem; }
+.vitruvium .relationship-status-list { display:grid; gap:5px; min-width:0; }
+.vitruvium .relationship-status-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:6px; min-width:0; }
+.vitruvium .relationship-status-row input { box-sizing:border-box; width:100%; min-width:0; }
+.vitruvium .relationship-status-row button { flex:0 0 auto; }
+.vitruvium .relationship-status-editor > button { justify-self:start; }
 .vitruvium .character-name { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; }
 .vitruvium .character-name > span { min-width:0; overflow-wrap:anywhere; }
 .vitruvium .character-name-editor { display:grid; width:100%; gap:8px; }

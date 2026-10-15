@@ -407,7 +407,11 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     const relationships = (this.actor.system.relationships ?? []).map((relationship) => ({
-      ...relationship, hasImage: hasCustomImage(relationship.portrait)
+      ...relationship,
+      statuses: Array.isArray(relationship.statuses)
+        ? relationship.statuses.map((status) => String(status ?? "").trim()).filter(Boolean)
+        : [],
+      hasImage: hasCustomImage(relationship.portrait)
     }));
     const resources = (this.actor.system.resources ?? []).map((resource, index) => ({
       ...resource, id: resource.id ?? `resource-${index}`, hasImage: hasCustomImage(resource.img)
@@ -505,6 +509,8 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
           "edit-item": VitruviumActorSheet.#editItem, "save-item": VitruviumActorSheet.#saveItem,
           "cancel-item": VitruviumActorSheet.#cancelItem, "create-ability": VitruviumActorSheet.#createAbility,
           "add-relationship": VitruviumActorSheet.#addRelationship, "adjust-relationship": VitruviumActorSheet.#adjustRelationship,
+          "add-relationship-status": VitruviumActorSheet.#addRelationshipStatus,
+          "remove-relationship-status": VitruviumActorSheet.#removeRelationshipStatus,
           "save-relationship": VitruviumActorSheet.#saveRelationship, "remove-relationship": VitruviumActorSheet.#removeRelationship,
           "add-resource": VitruviumActorSheet.#addResource, "edit-resource": VitruviumActorSheet.#editResource,
           "save-resource": VitruviumActorSheet.#saveResource, "cancel-resource": VitruviumActorSheet.#cancelResource,
@@ -807,9 +813,38 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
 
   static async #addRelationship() {
     const relationships = [...(this.actor.system.relationships ?? [])];
-    relationships.push({ id: foundry.utils.randomID(), name: "Новые отношения", value: 0, portrait: "", entityUuid: "" });
+    relationships.push({ id: foundry.utils.randomID(), name: "Новые отношения", value: 0, portrait: "", entityUuid: "", statuses: [] });
     await this.actor.update({ "system.relationships": relationships });
     return this.render();
+  }
+
+  static async #addRelationshipStatus(event, target) {
+    const list = target.closest("article")?.querySelector(".relationship-status-list");
+    if (!list) throw new Error("Relationship status list was not found.");
+    const row = document.createElement("div");
+    row.className = "relationship-status-row";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.dataset.relationshipStatus = "";
+    input.placeholder = "Например: брат";
+    input.setAttribute("aria-label", "Статус отношения");
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.textContent = "Удалить";
+    removeButton.setAttribute("aria-label", "Удалить статус отношения");
+    removeButton.addEventListener("click", (clickEvent) => {
+      clickEvent.preventDefault();
+      row.remove();
+    });
+    row.append(input, removeButton);
+    list.append(row);
+    input.focus();
+  }
+
+  static async #removeRelationshipStatus(event, target) {
+    const row = target.closest(".relationship-status-row");
+    if (!row) throw new Error("Relationship status row was not found.");
+    row.remove();
   }
 
   static async #adjustRelationship(event, target) {
@@ -840,6 +875,9 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       const value = field.dataset.relationshipField === "value" ? Number(field.value) : field.value;
       relationship[field.dataset.relationshipField] = value;
     });
+    relationship.statuses = [...target.closest("article").querySelectorAll("[data-relationship-status]")]
+      .map((field) => field.value.trim())
+      .filter((status, index, statuses) => status && statuses.indexOf(status) === index);
     relationship.value = clamp(relationship.value, getSetting("relationshipMin"), getSetting("relationshipMax"));
     await this.actor.update({ "system.relationships": relationships });
     this.editing.relationships = false;
@@ -1058,8 +1096,8 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
       ...context,
       actor: this.actor,
       npc: {
-        attackDice: clamp(npc.attackDice ?? 3, 1, 99),
-        defenseDice: clamp(npc.defenseDice ?? 2, 1, 99),
+        attackDice: clamp(npc.attackDice ?? 0, 0, 99),
+        defenseDice: clamp(npc.defenseDice ?? 0, 0, 99),
         block: clamp(npc.block ?? 0, 0, 99),
         abilities: Array.isArray(npc.abilities) ? npc.abilities : []
       }
