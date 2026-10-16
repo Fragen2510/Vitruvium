@@ -229,11 +229,15 @@ function renderRollCard(data) {
   if (data.statusHindrance) modifiers.push(`помеха +${data.statusHindrance} от статусов`);
   const modifierLabel = modifiers.length ? ` (${modifiers.join("; ")})` : "";
   const characteristic = data.characteristic ? `<span><small>Характеристика</small><b>${escapeHtml(data.characteristic + modifierLabel)}</b></span>` : "";
-  return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary">${characteristic}<span><small>Пул</small><b>${data.baseDice}+${data.inspirationSpent}=${data.poolDice}${VITRUVIUM_DIE_LABEL}</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
+  const domain = data.domainDice > 0
+    ? `<span><small>Применимый домен</small><b>${escapeHtml(data.domainName)} +${data.domainDice}${VITRUVIUM_DIE_LABEL}</b></span>`
+    : "";
+  const poolSummaryLabel = data.domainDice > 0 ? "Пул (домен включён)" : "Пул";
+  return `<section class="vitruvium-chat-card"><header><div class="roll-heading"><h3>Бросок Vitruvium</h3><span class="roll-character">${escapeHtml(data.character)}</span></div><span class="roll-mode">${data.mode}</span></header><div class="roll-summary">${characteristic}${domain}<span><small>${poolSummaryLabel}</small><b>${data.baseDice}+${data.inspirationSpent}=${data.poolDice}${VITRUVIUM_DIE_LABEL}</b></span>${inspiration}</div><ol>${rolls}${bonusDice}${domainBonuses}</ol><footer><span>Итог</span><strong>${successes} ${successLabel(successes)}</strong></footer>${actions}</section>`;
 }
 
 /** Roll a special Vitruvium die pool. Each die yields 0, 1 or 2 successes. */
-async function rollPool({ dice, advantage = 0, hindrance = 0, statusAdvantage = 0, statusHindrance = 0, inspiration = 0, speaker, actor, characteristic, characteristicModifier = 0 }) {
+async function rollPool({ dice, advantage = 0, hindrance = 0, statusAdvantage = 0, statusHindrance = 0, inspiration = 0, speaker, actor, characteristic, characteristicModifier = 0, domainName = "", domainDice = 0 }) {
   const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
   const count = clamp(dice, 1, maxDice);
   const availableInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
@@ -261,7 +265,7 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, statusAdvantage = 
   const mode = net > 0 ? `Преимущество ×${net}` : net < 0 ? `Помеха ×${Math.abs(net)}` : "Обычный бросок";
   const result = {
     actorUuid: actor?.uuid ?? null, character: actor?.name ?? speaker?.alias ?? "Без персонажа",
-    characteristic, characteristicModifier, statusAdvantage, statusHindrance, net, bonusDieMode,
+    characteristic, characteristicModifier, domainName, domainDice, statusAdvantage, statusHindrance, net, bonusDieMode,
     baseDice: count, poolDice: poolSize, mode,
     inspirationSpent: spentInspiration, inspirationRemaining: availableInspiration - spentInspiration,
     pools: pools.map((pool) => ({ results: pool.results, successes: pool.successes })),
@@ -736,11 +740,28 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     const trayRollButton = tray?.querySelector("[data-tray-action='roll']");
     if (trayRollButton) trayRollButton.disabled = true;
     try {
+      const domains = this.actor.items.filter((item) => item.type === "domain");
+      let selectedDomain = null;
+      if (domains.length) {
+        const options = [
+          `<option value="">Без домена</option>`,
+          ...domains.map((domain) => `<option value="${escapeHtml(domain.id)}">${escapeHtml(domain.name)} (уровень ${clamp(domain.system.value, 1, 3)})</option>`)
+        ].join("");
+        const selection = await foundry.applications.api.DialogV2.input({
+          window: { title: `Проверка характеристики: ${characteristic.label}` },
+          content: `<div class="form-group"><label for="vitruvium-roll-domain">Применимый домен</label><select id="vitruvium-roll-domain" name="domain">${options}</select></div><p class="hint">Уровень выбранного домена добавит столько же кубов к проверке. Если домен не подходит, оставьте «Без домена».</p>`,
+          ok: { label: "Бросить" },
+          rejectClose: false
+        });
+        if (!selection) return;
+        selectedDomain = domains.find((domain) => domain.id === selection.domain) ?? null;
+      }
       const speaker = ChatMessage.getSpeaker({ actor: this.actor });
       const statusModifiers = getStatusCharacteristicModifiers(this.actor, key);
       const { modifier: characteristicModifier, advantage: statusAdvantage, hindrance: statusHindrance } = statusModifiers;
+      const domainDice = selectedDomain ? clamp(selectedDomain.system.value, 1, 3) : 0;
       await rollPool({
-        dice: (this.actor.system.characteristics?.[key]?.value ?? 1) + characteristicModifier,
+        dice: (this.actor.system.characteristics?.[key]?.value ?? 1) + characteristicModifier + domainDice,
         advantage: trayState.advantage,
         hindrance: trayState.hindrance,
         statusAdvantage,
@@ -749,7 +770,9 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         speaker,
         actor: this.actor,
         characteristic: characteristic.label,
-        characteristicModifier
+        characteristicModifier,
+        domainName: selectedDomain?.name ?? "",
+        domainDice
       });
     } catch (error) {
       console.error("Vitruvium characteristic roll failed.", error);
