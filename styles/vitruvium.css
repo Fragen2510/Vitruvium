@@ -592,7 +592,7 @@
 .vitruvium .npc-status > textarea { box-sizing:border-box; width:100%; min-width:0; min-height:56px; padding:7px 9px; }
 .vitruvium .npc-status-effects { display:grid; gap:7px; min-width:0; padding:8px; border:1px solid #40505f; border-radius:7px; background:#1b252e; }
 .vitruvium .npc-status-effects > b { color:#dce6ef; font-size:.82rem; }
-.vitruvium .npc-status-effect { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(80px,.45fr) auto; align-items:end; gap:7px; min-width:0; padding:7px; border:1px solid #354653; border-radius:6px; background:#232d38; }
+.vitruvium .npc-status-effect { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) minmax(80px,.45fr) auto; align-items:end; gap:7px; min-width:0; padding:7px; border:1px solid #354653; border-radius:6px; background:#232d38; }
 .vitruvium .npc-status-effect > label { display:grid; gap:4px; min-width:0; color:#b9c7d3; font-size:.78rem; }
 .vitruvium .npc-status-effect input, .vitruvium .npc-status-effect select { box-sizing:border-box; width:100%; min-width:0; min-height:34px; }
 .vitruvium .npc-status-effect > button, .vitruvium .npc-status-effects > button { justify-self:start; white-space:nowrap; }

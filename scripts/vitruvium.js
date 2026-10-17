@@ -78,11 +78,13 @@ const getStatusCharacteristicModifiers = (actor, key) => {
     hindrance: clamp(Math.trunc(sum("hindrance")), 0, MAX_ADVANTAGE_HINDRANCE)
   };
 };
-const getNpcStatusModifiers = (npc, target) => {
+const getNpcStatusModifiers = (npc, target, abilityId = null) => {
   const effects = (Array.isArray(npc?.statuses) ? npc.statuses : [])
     .filter((status) => status.active !== false)
     .flatMap((status) => Array.isArray(status.effects) ? status.effects : [])
-    .filter((effect) => effect.target === target && Number.isFinite(Number(effect.modifier)));
+    .filter((effect) => effect.target === target
+      && (!effect.abilityId || effect.abilityId === abilityId)
+      && Number.isFinite(Number(effect.modifier)));
   const sum = (type) => effects
     .filter((effect) => (effect.type ?? "dice") === type)
     .reduce((total, effect) => total + Math.trunc(Number(effect.modifier)), 0);
@@ -1225,13 +1227,14 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     const npc = this.actor.system.npc ?? {};
+    const abilities = Array.isArray(npc.abilities) ? npc.abilities : [];
     return {
       ...context,
       actor: this.actor,
       npc: {
         attackDice: clamp(npc.attackDice ?? 0, 0, 99),
         defenseDice: clamp(npc.defenseDice ?? 0, 0, 99),
-        abilities: Array.isArray(npc.abilities) ? npc.abilities : [],
+        abilities,
         statuses: (Array.isArray(npc.statuses) ? npc.statuses : []).map((status, index) => ({
           ...status,
           id: status.id ?? `npc-status-${index}`,
@@ -1239,9 +1242,22 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
           effects: (Array.isArray(status.effects) ? status.effects : []).map((effect, effectIndex) => {
             const type = ["dice", "advantage", "hindrance"].includes(effect.type) ? effect.type : "dice";
             const target = ["attack", "defense"].includes(effect.target) ? effect.target : "attack";
+            const abilityId = typeof effect.abilityId === "string" ? effect.abilityId : "";
             return {
               ...effect,
               id: effect.id ?? `npc-status-${index}-effect-${effectIndex}`,
+              abilityId,
+              abilityOptions: [
+                { id: "", name: "Любая атака или защита", selected: !abilityId },
+                ...abilities.map((ability) => ({
+                  id: ability.id,
+                  name: ability.name || "Способность",
+                  selected: ability.id === abilityId
+                })),
+                ...(abilityId && !abilities.some((ability) => ability.id === abilityId)
+                  ? [{ id: abilityId, name: "Удалённая способность (эффект не действует)", selected: true }]
+                  : [])
+              ],
               type,
               target,
               isAttack: target === "attack",
@@ -1368,6 +1384,7 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
         return {
           id: effect.dataset.npcStatusEffectId,
           target: effect.querySelector("[data-npc-status-effect-field='target']")?.value === "defense" ? "defense" : "attack",
+          abilityId: effect.querySelector("[data-npc-status-effect-field='abilityId']")?.value ?? "",
           type,
           modifier: Math.trunc(clamp(value, ["advantage", "hindrance"].includes(type) ? 0 : -99, ["advantage", "hindrance"].includes(type) ? MAX_ADVANTAGE_HINDRANCE : 99))
         };
@@ -1416,7 +1433,7 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
     const ability = npc.abilities?.find((entry) => entry.id === button.dataset.abilityId);
     const baseDice = clamp(target === "attack" ? npc.attackDice ?? 0 : npc.defenseDice ?? 0, 0, 99);
     const bonusDice = ability ? clamp(ability.bonusDice, 0, 99) : 0;
-    const statusModifiers = getNpcStatusModifiers(npc, target);
+    const statusModifiers = getNpcStatusModifiers(npc, target, ability?.id ?? null);
     const dice = clamp(baseDice + bonusDice + statusModifiers.dice, 0, 99);
     const net = statusModifiers.advantage - statusModifiers.hindrance;
     const pools = [];
