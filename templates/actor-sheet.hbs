@@ -113,7 +113,7 @@
     </aside>
     <main class="main-column">
       <section class="panel attributes-panel">
-        <header><h2>Атрибуты <span>{{attributes.length}} / 12</span></h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="attributes" aria-label="Редактировать атрибуты">⋯</button></header>
+        <header><h2>Атрибуты <span>{{attributes.length}} / {{maxAttributes}}</span></h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="attributes" aria-label="Редактировать атрибуты">⋯</button></header>
         <div class="card-grid scroll-list">
           {{#each attributes}}
             <article class="entity-card {{#if hasImage}}has-image{{/if}}">
@@ -138,7 +138,7 @@
         </div>
       </section>
       <section class="panel domains-panel">
-        <header><h2>Домены <span>{{domains.length}} / 6</span></h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="domains" aria-label="Редактировать домены">⋯</button></header>
+        <header><h2>Домены <span>{{domains.length}} / {{maxDomains}}</span></h2><button type="button" class="panel-action" data-vitruvium-action="toggle-edit" data-section="domains" aria-label="Редактировать домены">⋯</button></header>
         <div class="domain-list scroll-list">
           {{#each domains}}
             <article class="domain-card {{#if hasImage}}has-image{{/if}}">
@@ -146,7 +146,17 @@
                 {{#if hasImage}}<img class="entity-image" src="{{img}}" alt="">{{/if}}
                 <div class="domain-edit entity-edit">
                   <input class="inline-edit" data-item-id="{{id}}" data-item-field="name" value="{{name}}" aria-label="Название домена">
-                  <label class="level-field">Уровень<input class="inline-edit" data-item-id="{{id}}" data-item-field="system.value" type="number" min="1" max="3" value="{{system.value}}" aria-label="Уровень домена"></label>
+                  <label class="level-field">Уровень<input class="inline-edit" data-item-id="{{id}}" data-item-field="system.value" type="number" min="1" max="{{../maxDomainLevel}}" value="{{system.value}}" aria-label="Уровень домена"></label>
+                  {{#if showAbilityMultiplier}}
+                    <label class="level-field">Способностей на уровень<input class="inline-edit" data-item-id="{{id}}" data-item-field="system.abilitiesPerLevel" type="number" min="0" max="99" step="1" value="{{abilityMultiplier}}" aria-label="Способностей на уровень домена"></label>
+                  {{/if}}
+                  {{#if showAbilityLimits}}
+                    <div class="domain-ability-limits"><b>Лимит способностей по уровню</b>
+                      {{#each abilityLimitRows}}
+                        <label>Уровень {{level}}<input class="inline-edit" data-item-id="{{../id}}" data-item-field="{{field}}" type="number" min="0" max="99" step="1" value="{{limit}}" aria-label="Лимит способностей домена {{../name}} уровня {{level}}"></label>
+                      {{/each}}
+                    </div>
+                  {{/if}}
                   <textarea class="inline-edit" data-item-id="{{id}}" data-item-field="system.description" aria-label="Описание домена">{{system.description}}</textarea>
                   <div class="image-actions"><label class="image-button">Изменить фото<input type="file" data-item-image="{{id}}" accept="image/*"></label><button type="button" data-vitruvium-action="remove-item-image" data-item-id="{{id}}">Удалить фото</button></div>
                 </div>
@@ -163,6 +173,8 @@
                 {{#if ../editing.domains}}<div class="form-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" class="delete-card" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить домен</button></div>{{/if}}
               {{/if}}
               <div class="ability-list">
+                <small class="domain-ability-capacity">Способности: {{abilityCount}} / {{abilityLimitLabel}}</small>
+                {{#if overAbilityLimit}}<small class="warning">Уже созданных способностей больше текущего лимита. Удалять их автоматически не будем; новые добавить нельзя, пока число способностей не войдёт в лимит.</small>{{/if}}
                 {{#each abilities}}
                   <div class="ability-item {{#if hasImage}}has-image{{/if}}">
                     {{#if (lookup ../../editingItems id)}}

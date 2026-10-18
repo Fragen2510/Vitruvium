@@ -13,7 +13,14 @@ const CHARACTERISTICS = {
   will: { label: "Воля" }
 };
 const CHARACTERISTIC_KEYS = new Set(Object.keys(CHARACTERISTICS));
-const MAX_ADVANTAGE_HINDRANCE = 2;
+const DEFAULT_DOMAIN_ABILITY_MULTIPLIER = 2;
+const MAX_CONFIGURABLE_LIMIT = 99;
+const DOMAIN_ABILITY_LIMIT_MODES = {
+  standard: "Стандартный (2 способности на уровень)",
+  multiplier: "Свой множитель для каждого домена",
+  perLevel: "Отдельный лимит каждого уровня домена",
+  unlimited: "Без лимита"
+};
 const STATUS_EFFECT_TYPES = {
   dice: "Изменение кубов",
   advantage: "Преимущество",
@@ -40,6 +47,21 @@ const selectBonusDieResult = (results, net, bonusDieMode) => {
   };
 };
 const getSetting = (key) => game.settings.get(SYSTEM_ID, key);
+const getMaxAdvantageHindrance = () => getSetting("maxAdvantageHindrance");
+function getDomainAbilityLimit(domain, level = domain.system.value) {
+  const domainLevel = clamp(level, 1, getSetting("maxDomainLevel"));
+  const mode = getSetting("domainAbilityLimitMode");
+  if (mode === "unlimited") return Infinity;
+  if (mode === "multiplier") {
+    const multiplier = Number(domain.system.abilitiesPerLevel);
+    return clamp(Number.isFinite(multiplier) ? multiplier : DEFAULT_DOMAIN_ABILITY_MULTIPLIER, 0, MAX_CONFIGURABLE_LIMIT) * domainLevel;
+  }
+  if (mode === "perLevel") {
+    const value = Number(domain.system.abilityLimits?.[domainLevel]);
+    return clamp(Number.isFinite(value) ? value : domainLevel * DEFAULT_DOMAIN_ABILITY_MULTIPLIER, 0, MAX_CONFIGURABLE_LIMIT);
+  }
+  return domainLevel * DEFAULT_DOMAIN_ABILITY_MULTIPLIER;
+}
 const hasCustomImage = (image) => {
   const path = String(image ?? "").split("?")[0].toLowerCase();
   return Boolean(path) && !["icons/svg/mystery-man.svg", "icons/svg/item-bag.svg"].some((placeholder) => path.endsWith(placeholder));
@@ -74,8 +96,8 @@ const getStatusCharacteristicModifiers = (actor, key) => {
   const sum = (type) => effects.reduce((total, effect) => total + getEffectValue(effect, type), 0);
   return {
     modifier: sum("dice"),
-    advantage: clamp(Math.trunc(sum("advantage")), 0, MAX_ADVANTAGE_HINDRANCE),
-    hindrance: clamp(Math.trunc(sum("hindrance")), 0, MAX_ADVANTAGE_HINDRANCE)
+    advantage: clamp(Math.trunc(sum("advantage")), 0, getMaxAdvantageHindrance()),
+    hindrance: clamp(Math.trunc(sum("hindrance")), 0, getMaxAdvantageHindrance())
   };
 };
 const getNpcStatusModifiers = (npc, target, abilityId = null) => {
@@ -90,8 +112,8 @@ const getNpcStatusModifiers = (npc, target, abilityId = null) => {
     .reduce((total, effect) => total + Math.trunc(Number(effect.modifier)), 0);
   return {
     dice: sum("dice"),
-    advantage: clamp(sum("advantage"), 0, MAX_ADVANTAGE_HINDRANCE),
-    hindrance: clamp(sum("hindrance"), 0, MAX_ADVANTAGE_HINDRANCE)
+    advantage: clamp(sum("advantage"), 0, getMaxAdvantageHindrance()),
+    hindrance: clamp(sum("hindrance"), 0, getMaxAdvantageHindrance())
   };
 };
 const successLabel = (count) => {
@@ -245,8 +267,8 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, statusAdvantage = 
   const availableInspiration = Math.max(0, Number(actor?.system?.inspiration) || 0);
   const spentInspiration = Math.min(clamp(inspiration, 0, availableInspiration), maxDice - count);
   const poolSize = count + spentInspiration;
-  const totalAdvantage = clamp(Number(advantage) + Number(statusAdvantage), 0, MAX_ADVANTAGE_HINDRANCE);
-  const totalHindrance = clamp(Number(hindrance) + Number(statusHindrance), 0, MAX_ADVANTAGE_HINDRANCE);
+  const totalAdvantage = clamp(Number(advantage) + Number(statusAdvantage), 0, getMaxAdvantageHindrance());
+  const totalHindrance = clamp(Number(hindrance) + Number(statusHindrance), 0, getMaxAdvantageHindrance());
   const net = totalAdvantage - totalHindrance;
   const bonusDieMode = getSetting("bonusDieUsesAdvantage");
   const attempts = Math.abs(net) + 1;
@@ -273,7 +295,7 @@ async function rollPool({ dice, advantage = 0, hindrance = 0, statusAdvantage = 
     pools: pools.map((pool) => ({ results: pool.results, successes: pool.successes })),
     chosenIndex: pools.indexOf(chosen), bonusDice: [], domainSuccesses: [],
     domains: actor?.items?.filter((item) => item.type === "domain").map((domain) => ({
-      id: domain.id, name: domain.name, level: clamp(domain.system.value, 1, 3)
+      id: domain.id, name: domain.name, level: clamp(domain.system.value, 1, getSetting("maxDomainLevel"))
     })) ?? []
   };
   const content = renderRollCard(result);
@@ -332,7 +354,7 @@ async function handleRollAction(event) {
       const domainId = button.closest(".roll-actions")?.querySelector("[data-roll-domain]")?.value;
       const domain = actor.items.get(domainId);
       if (!domain || domain.type !== "domain" || !data.domains.some((entry) => entry.id === domain.id)) return;
-      const level = clamp(domain.system.value, 1, 3);
+      const level = clamp(domain.system.value, 1, getSetting("maxDomainLevel"));
       domainBonus = { name: domain.name, level, successes: level };
     }
     await actor.update({ "system.inspiration": availableInspiration - 1 });
@@ -377,7 +399,7 @@ function updateTrayDisplay(tray) {
   tray.querySelectorAll("[data-tray-action='change']").forEach((button) => {
     const key = button.dataset.key;
     const delta = Number(button.dataset.delta);
-    const limit = key === "dice" ? maxDice : key === "inspiration" ? Math.min(actorInspiration, maxDice - trayState.dice) : 2;
+    const limit = key === "dice" ? maxDice : key === "inspiration" ? Math.min(actorInspiration, maxDice - trayState.dice) : getMaxAdvantageHindrance();
     const minimum = key === "dice" ? 1 : 0;
     button.disabled = delta < 0 ? trayState[key] <= minimum : trayState[key] >= limit;
   });
@@ -449,7 +471,7 @@ async function handleTrayClick(event) {
     const tray = button.closest("#vitruvium-dice-tray");
     const maxDice = Math.max(1, Number(getSetting("maxDice")) || 6);
     const actor = getSpeakerActor();
-    const limit = key === "dice" ? maxDice : key === "inspiration" ? Math.min(Number(actor?.system?.inspiration) || 0, maxDice - trayState.dice) : 2;
+    const limit = key === "dice" ? maxDice : key === "inspiration" ? Math.min(Number(actor?.system?.inspiration) || 0, maxDice - trayState.dice) : getMaxAdvantageHindrance();
     trayState[key] = clamp(trayState[key] + Number(button.dataset.delta), key === "dice" ? 1 : 0, limit);
     updateTrayDisplay(tray);
     return;
@@ -546,7 +568,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
             type,
             value: type === "dice"
               ? normalizedValue
-              : clamp(normalizedValue, 0, MAX_ADVANTAGE_HINDRANCE),
+              : clamp(normalizedValue, 0, getMaxAdvantageHindrance()),
             displayValue: type === "dice" && normalizedValue > 0 ? `+${normalizedValue}` : String(normalizedValue),
             label: STATUS_EFFECT_TYPES[type],
             characteristic: effect.characteristic,
@@ -584,12 +606,41 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         total: clamp(value + modifier, 1, maxDice)
       }];
     }));
-    const domains = this.actor.items.filter((item) => item.type === "domain").map((domain) => ({
-      id: domain.id, name: domain.name, img: domain.img, hasImage: hasCustomImage(domain.img), system: domain.system,
-      abilities: this.actor.items.filter((item) => item.type === "ability" && item.system.domainId === domain.id).map((ability) => ({
+    const maxDomainLevel = getSetting("maxDomainLevel");
+    const abilityLimitMode = getSetting("domainAbilityLimitMode");
+    const domains = this.actor.items.filter((item) => item.type === "domain").map((domain) => {
+      const abilities = this.actor.items.filter((item) => item.type === "ability" && item.system.domainId === domain.id).map((ability) => ({
         id: ability.id, name: ability.name, img: ability.img, hasImage: hasCustomImage(ability.img), system: ability.system
-      }))
-    }));
+      }));
+      const abilityLimit = getDomainAbilityLimit(domain);
+      return {
+        id: domain.id, name: domain.name, img: domain.img, hasImage: hasCustomImage(domain.img), system: domain.system,
+        abilityCount: abilities.length,
+        abilityLimitLabel: Number.isFinite(abilityLimit) ? String(abilityLimit) : "Без лимита",
+        overAbilityLimit: abilities.length > abilityLimit,
+        showAbilityMultiplier: abilityLimitMode === "multiplier",
+        showAbilityLimits: abilityLimitMode === "perLevel",
+        abilityMultiplier: clamp(domain.system.abilitiesPerLevel ?? DEFAULT_DOMAIN_ABILITY_MULTIPLIER, 0, MAX_CONFIGURABLE_LIMIT),
+        abilityLimitRows: abilityLimitMode === "perLevel"
+          ? Array.from({ length: maxDomainLevel }, (_, index) => {
+              const level = index + 1;
+              const configured = Number(domain.system.abilityLimits?.[level]);
+              return {
+                level,
+                field: `system.abilityLimits.${level}`,
+                limit: Math.trunc(clamp(
+                  Number.isFinite(configured) ? configured : level * DEFAULT_DOMAIN_ABILITY_MULTIPLIER,
+                  0,
+                  MAX_CONFIGURABLE_LIMIT
+                ))
+              };
+            })
+          : [],
+        abilities
+      };
+    });
+    const maxDomains = getSetting("maxDomains");
+    const maxAttributes = getSetting("maxAttributes");
     const tokenizer = game.modules.get("vtta-tokenizer");
     return {
       ...context, actor: this.actor, system: this.actor.system, characteristics,
@@ -597,8 +648,8 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       tokenizerAvailable: Boolean(tokenizer?.active && (tokenizer.api?.launch || globalThis.Tokenizer?.launch)),
       editingName: this.editingName,
       relationships, maxCharacteristic: getSetting("maxCharacteristic"), relationshipMin: getSetting("relationshipMin"),
-      relationshipMax: getSetting("relationshipMax"), maxInspiration: 6, resources,
-      domains,
+      relationshipMax: getSetting("relationshipMax"), maxInspiration: getSetting("maxInspiration"), resources,
+      domains, maxDomains, maxAttributes, maxDomainLevel,
       abilities: itemsOfType("ability"),
       attributes: itemsOfType("attribute"),
       possessions: itemsOfType("possession"),
@@ -747,7 +798,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       if (domains.length) {
         const options = [
           `<option value="">Без домена</option>`,
-          ...domains.map((domain) => `<option value="${escapeHtml(domain.id)}">${escapeHtml(domain.name)} (уровень ${clamp(domain.system.value, 1, 3)})</option>`)
+          ...domains.map((domain) => `<option value="${escapeHtml(domain.id)}">${escapeHtml(domain.name)} (уровень ${clamp(domain.system.value, 1, getSetting("maxDomainLevel"))})</option>`)
         ].join("");
         const selection = await foundry.applications.api.DialogV2.input({
           window: { title: `Проверка характеристики: ${characteristic.label}` },
@@ -761,7 +812,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       const speaker = ChatMessage.getSpeaker({ actor: this.actor });
       const statusModifiers = getStatusCharacteristicModifiers(this.actor, key);
       const { modifier: characteristicModifier, advantage: statusAdvantage, hindrance: statusHindrance } = statusModifiers;
-      const domainDice = selectedDomain ? clamp(selectedDomain.system.value, 1, 3) : 0;
+      const domainDice = selectedDomain ? clamp(selectedDomain.system.value, 1, getSetting("maxDomainLevel")) : 0;
       await rollPool({
         dice: (this.actor.system.characteristics?.[key]?.value ?? 1) + characteristicModifier + domainDice,
         advantage: trayState.advantage,
@@ -846,15 +897,15 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
 
   static async #createItem(event, target) {
     const type = target.dataset.type;
-    if (type === "domain" && this.actor.items.filter((item) => item.type === "domain").length >= 6) {
-      return ui.notifications.warn("У персонажа не может быть больше 6 доменов.");
+    if (type === "domain" && this.actor.items.filter((item) => item.type === "domain").length >= getSetting("maxDomains")) {
+      return ui.notifications.warn(`У персонажа достигнут лимит доменов (${getSetting("maxDomains")}).`);
     }
-    if (type === "attribute" && this.actor.items.filter((item) => item.type === "attribute").length >= 12) {
-      return ui.notifications.warn("У персонажа не может быть больше 12 атрибутов.");
+    if (type === "attribute" && this.actor.items.filter((item) => item.type === "attribute").length >= getSetting("maxAttributes")) {
+      return ui.notifications.warn(`У персонажа достигнут лимит атрибутов (${getSetting("maxAttributes")}).`);
     }
     const labels = { domain: "Новый домен", ability: "Новая способность", attribute: "Новый атрибут", possession: "Новое имущество", status: "Новый статус" };
     const system = type === "domain"
-      ? { value: 1, description: "" }
+      ? { value: 1, description: "", abilitiesPerLevel: DEFAULT_DOMAIN_ABILITY_MULTIPLIER, abilityLimits: {} }
       : type === "status"
         ? { description: "", active: true, effects: [] }
         : { description: "" };
@@ -886,7 +937,13 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       if (field.dataset.itemId !== item.id) continue;
       const value = field.type === "number" ? Number(field.value) : field.value;
       if (field.dataset.itemField === "system.value") {
-        foundry.utils.setProperty(updates, field.dataset.itemField, clamp(value, 1, 3));
+        const maxLevel = getSetting("maxDomainLevel");
+        const unchangedExistingLevel = value === Number(item.system.value) && value > maxLevel;
+        foundry.utils.setProperty(updates, field.dataset.itemField, unchangedExistingLevel
+          ? Number(item.system.value)
+          : clamp(value, 1, maxLevel));
+      } else if (field.dataset.itemField === "system.abilitiesPerLevel" || /^system\.abilityLimits\.\d+$/.test(field.dataset.itemField)) {
+        foundry.utils.setProperty(updates, field.dataset.itemField, Math.trunc(clamp(value, 0, MAX_CONFIGURABLE_LIMIT)));
       } else {
         foundry.utils.setProperty(updates, field.dataset.itemField, value);
       }
@@ -907,7 +964,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
           type,
           value: type === "dice"
             ? Math.trunc(value)
-            : clamp(Math.trunc(value), 0, MAX_ADVANTAGE_HINDRANCE)
+            : clamp(Math.trunc(value), 0, getMaxAdvantageHindrance())
         };
       });
       foundry.utils.setProperty(updates, "system.active", activeField?.checked ?? true);
@@ -933,16 +990,19 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
   static async #createAbility(event, target) {
     const domain = this.actor.items.get(target.dataset.domainId);
     if (!domain) return;
-    const level = clamp(domain.system.value, 1, 3);
     const abilities = this.actor.items.filter((item) => item.type === "ability" && item.system.domainId === domain.id);
-    if (abilities.length >= level * 2) return ui.notifications.warn(`У домена «${domain.name}» максимум ${level * 2} способности.`);
+    const abilityLimit = getDomainAbilityLimit(domain);
+    if (abilities.length >= abilityLimit) {
+      const limitLabel = Number.isFinite(abilityLimit) ? String(abilityLimit) : "без лимита";
+      return ui.notifications.warn(`У домена «${domain.name}» достигнут лимит способностей (${limitLabel}).`);
+    }
     const [ability] = await this.actor.createEmbeddedDocuments("Item", [{ name: "Новая способность", type: "ability", system: { domainId: domain.id, description: "" } }]);
     this.editingItems[ability.id] = true;
     return this.render();
   }
 
   static async #adjustInspiration(event, target) {
-    const value = clamp((this.actor.system.inspiration ?? 0) + Number(target.dataset.delta), 0, 6);
+    const value = clamp((this.actor.system.inspiration ?? 0) + Number(target.dataset.delta), 0, getSetting("maxInspiration"));
     await this.actor.update({ "system.inspiration": value });
     return this.render();
   }
@@ -1266,11 +1326,11 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
               isAdvantage: type === "advantage",
               isHindrance: type === "hindrance",
               minModifier: type === "dice" ? -99 : 0,
-              maxModifier: type === "dice" ? 99 : MAX_ADVANTAGE_HINDRANCE,
+              maxModifier: type === "dice" ? MAX_CONFIGURABLE_LIMIT : getMaxAdvantageHindrance(),
               modifier: Math.trunc(clamp(
                 Number.isFinite(Number(effect.modifier)) ? Number(effect.modifier) : 0,
                 type === "dice" ? -99 : 0,
-                type === "dice" ? 99 : MAX_ADVANTAGE_HINDRANCE
+                type === "dice" ? MAX_CONFIGURABLE_LIMIT : getMaxAdvantageHindrance()
               ))
             };
           })
@@ -1327,8 +1387,8 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
           const limitedEffect = ["advantage", "hindrance"].includes(field.value);
           if (valueField) {
             valueField.min = limitedEffect ? "0" : "-99";
-            valueField.max = limitedEffect ? String(MAX_ADVANTAGE_HINDRANCE) : "99";
-            valueField.value = String(Math.trunc(clamp(valueField.value, limitedEffect ? 0 : -99, limitedEffect ? MAX_ADVANTAGE_HINDRANCE : 99)));
+            valueField.max = limitedEffect ? String(getMaxAdvantageHindrance()) : String(MAX_CONFIGURABLE_LIMIT);
+            valueField.value = String(Math.trunc(clamp(valueField.value, limitedEffect ? 0 : -MAX_CONFIGURABLE_LIMIT, limitedEffect ? getMaxAdvantageHindrance() : MAX_CONFIGURABLE_LIMIT)));
           }
         }
         try {
@@ -1386,7 +1446,7 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
           target: effect.querySelector("[data-npc-status-effect-field='target']")?.value === "defense" ? "defense" : "attack",
           abilityId: effect.querySelector("[data-npc-status-effect-field='abilityId']")?.value ?? "",
           type,
-          modifier: Math.trunc(clamp(value, ["advantage", "hindrance"].includes(type) ? 0 : -99, ["advantage", "hindrance"].includes(type) ? MAX_ADVANTAGE_HINDRANCE : 99))
+          modifier: Math.trunc(clamp(value, ["advantage", "hindrance"].includes(type) ? 0 : -MAX_CONFIGURABLE_LIMIT, ["advantage", "hindrance"].includes(type) ? getMaxAdvantageHindrance() : MAX_CONFIGURABLE_LIMIT))
         };
       })
     }));
@@ -1488,11 +1548,39 @@ class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationM
   }
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
+    const isDomain = this.item.type === "domain";
+    const abilityLimitMode = getSetting("domainAbilityLimitMode");
+    const maxDomainLevel = getSetting("maxDomainLevel");
+    const abilityCount = this.item.parent?.items
+      ?.filter((entry) => entry.type === "ability" && entry.system.domainId === this.item.id).length ?? 0;
+    const abilityLimit = isDomain ? getDomainAbilityLimit(this.item) : 0;
     return {
       ...context, item: this.item, system: this.item.system,
       itemHasImage: hasCustomImage(this.item.img),
       isEditable: this.isEditable,
-      hasValue: ["domain", "aspect"].includes(this.item.type), isAspect: this.item.type === "aspect",
+      hasValue: ["domain", "aspect"].includes(this.item.type), isDomain, isAspect: this.item.type === "aspect",
+      maxDomainLevel,
+      maxAspectLevel: getSetting("maxAspectLevel"),
+      showAbilityMultiplier: isDomain && abilityLimitMode === "multiplier",
+      showAbilityLimits: isDomain && abilityLimitMode === "perLevel",
+      abilityMultiplier: clamp(this.item.system.abilitiesPerLevel ?? DEFAULT_DOMAIN_ABILITY_MULTIPLIER, 0, MAX_CONFIGURABLE_LIMIT),
+      abilityLimitRows: abilityLimitMode === "perLevel"
+        ? Array.from({ length: maxDomainLevel }, (_, index) => {
+            const level = index + 1;
+            const configured = Number(this.item.system.abilityLimits?.[level]);
+            return {
+              level,
+              limit: Math.trunc(clamp(
+                Number.isFinite(configured) ? configured : level * DEFAULT_DOMAIN_ABILITY_MULTIPLIER,
+                0,
+                MAX_CONFIGURABLE_LIMIT
+              ))
+            };
+          })
+        : [],
+      abilityCount,
+      abilityLimitLabel: Number.isFinite(abilityLimit) ? String(abilityLimit) : "Без лимита",
+      overAbilityLimit: abilityCount > abilityLimit,
       canEditAspect: game.user.isGM || game.user.role >= CONST.USER_ROLES.ASSISTANT
     };
   }
@@ -1526,11 +1614,33 @@ function registerSettings() {
     ["maxDice", 6, 1, 99, "Максимум кубиков в пуле"],
     ["maxCharacteristic", 3, 1, 99, "Максимальный уровень характеристики"],
     ["relationshipMin", -6, -99, 99, "Минимальное значение отношений"],
-    ["relationshipMax", 6, -99, 99, "Максимальное значение отношений"]
+    ["relationshipMax", 6, -99, 99, "Максимальное значение отношений"],
+    ["maxDomains", 6, 0, 99, "Максимум доменов на персонажа"],
+    ["maxAttributes", 12, 0, 99, "Максимум атрибутов на персонажа"],
+    ["maxDomainLevel", 3, 1, 99, "Максимальный уровень домена"],
+    ["maxAspectLevel", 3, 0, 99, "Максимальный уровень аспекта"],
+    ["maxInspiration", 6, 0, 99, "Максимум вдохновения"],
+    ["maxAdvantageHindrance", 2, 0, 99, "Максимум преимущества или помехи"]
   ];
   for (const [key, defaultValue, min, max, name] of settings) {
-    game.settings.register(SYSTEM_ID, key, { name, scope: "world", config: true, type: Number, default: defaultValue, range: { min, max, step: 1 }, restricted: true, onChange: normalizeActorLimits });
+    const onChange = ["maxCharacteristic", "maxInspiration"].includes(key)
+      ? handleLimitSettingChange
+      : ["maxDomainLevel", "maxAspectLevel"].includes(key)
+        ? () => normalizeItemLevels(key === "maxDomainLevel" ? "domain" : "aspect", key)
+        : refreshOpenCharacterSheets;
+    game.settings.register(SYSTEM_ID, key, { name, scope: "world", config: true, type: Number, default: defaultValue, range: { min, max, step: 1 }, restricted: true, onChange });
   }
+  game.settings.register(SYSTEM_ID, "domainAbilityLimitMode", {
+    name: "Лимит способностей домена",
+    hint: "Выберите стандартный лимит, отдельные настройки для каждого домена или отсутствие лимита. Значения ограничений задаются в карточке домена.",
+    scope: "world",
+    config: true,
+    type: String,
+    choices: DOMAIN_ABILITY_LIMIT_MODES,
+    default: "standard",
+    restricted: true,
+    onChange: refreshOpenSheets
+  });
   game.settings.register(SYSTEM_ID, "bonusDieUsesAdvantage", {
     name: "Дополнительный кубик учитывает преимущество и помеху",
     hint: `Если включено, действие за вдохновение бросает столько дополнительных ${VITRUVIUM_DIE_LABEL}, сколько осталось преимущества или помехи после взаимной компенсации, и прибавляет лучший или худший результат соответственно. Если выключено, бросается один дополнительный ${VITRUVIUM_DIE_LABEL}.`,
@@ -1538,8 +1648,49 @@ function registerSettings() {
     config: true,
     type: Boolean,
     default: true,
-    restricted: true
+    restricted: true,
+    onChange: refreshOpenCharacterSheets
   });
+}
+
+async function handleLimitSettingChange() {
+  await normalizeActorLimits();
+  refreshOpenCharacterSheets();
+}
+
+async function normalizeItemLevels(type, settingKey) {
+  if (game.user?.isGM) {
+    const items = [...game.items];
+    for (const actor of game.actors) items.push(...actor.items);
+    for (const item of items) {
+      if (item.type !== type) continue;
+      const minimum = type === "domain" ? 1 : 0;
+      const level = clamp(item.system.value, minimum, getSetting(settingKey));
+      if (level !== Number(item.system.value)) {
+        await item.update({ "system.value": level }, { vitruviumNormalizeLevelLimit: true });
+      }
+    }
+  }
+  refreshOpenSheets();
+}
+
+function refreshOpenCharacterSheets() {
+  for (const actor of game.actors?.filter((entry) => entry.type === "character") ?? []) {
+    if (actor.sheet?.element) actor.sheet.render();
+  }
+}
+
+function refreshOpenItemSheets() {
+  const items = [...game.items];
+  for (const actor of game.actors ?? []) items.push(...actor.items);
+  for (const item of items) {
+    if (item.sheet?.element) item.sheet.render();
+  }
+}
+
+function refreshOpenSheets() {
+  refreshOpenCharacterSheets();
+  refreshOpenItemSheets();
 }
 
 async function normalizeActorLimits() {
@@ -1551,7 +1702,7 @@ async function normalizeActorLimits() {
     }
     await actor.update({
       "system.characteristics": characteristics,
-      "system.inspiration": clamp(actor.system.inspiration, 0, 6)
+      "system.inspiration": clamp(actor.system.inspiration, 0, getSetting("maxInspiration"))
     });
   }
 }
@@ -1584,7 +1735,7 @@ Hooks.on("preCreateActor", (actor) => {
 
 Hooks.on("preUpdateActor", (actor, change) => {
   const incoming = change.system ?? {};
-  if (incoming.inspiration !== undefined) incoming.inspiration = clamp(incoming.inspiration, 0, 6);
+  if (incoming.inspiration !== undefined) incoming.inspiration = clamp(incoming.inspiration, 0, getSetting("maxInspiration"));
   const resources = incoming.resources ?? change["system.resources"];
   if (resources !== undefined) {
     if (!Array.isArray(resources)) throw new Error("Vitruvium actor resources must be an array.");
@@ -1610,15 +1761,34 @@ Hooks.on("preUpdateActor", (actor, change) => {
   }
 });
 
-Hooks.on("preUpdateItem", (item, change) => {
+Hooks.on("preUpdateItem", (item, change, options) => {
   if (item.type !== "domain") return;
+  if (change.system?.abilitiesPerLevel !== undefined) {
+    change.system.abilitiesPerLevel = Math.trunc(clamp(change.system.abilitiesPerLevel, 0, MAX_CONFIGURABLE_LIMIT));
+  }
+  if (change.system?.abilityLimits && typeof change.system.abilityLimits === "object") {
+    for (const [level, limit] of Object.entries(change.system.abilityLimits)) {
+      if (/^\d+$/.test(level)) {
+        change.system.abilityLimits[level] = Math.trunc(clamp(limit, 0, MAX_CONFIGURABLE_LIMIT));
+      }
+    }
+  }
   const nextLevel = change.system?.value;
   if (nextLevel === undefined) return;
-  change.system.value = clamp(nextLevel, 1, 3);
+  const maxLevel = getSetting("maxDomainLevel");
+  if (Number(nextLevel) === Number(item.system.value) && Number(nextLevel) > maxLevel) {
+    change.system.value = item.system.value;
+    return;
+  }
+  change.system.value = clamp(nextLevel, 1, maxLevel);
+  if (options?.vitruviumNormalizeLevelLimit) return;
+  if (Number(change.system.value) === Number(item.system.value)) return;
   const actor = item.parent;
   if (!actor?.items) return;
   const abilityCount = actor.items.filter((entry) => entry.type === "ability" && entry.system.domainId === item.id).length;
-  if (abilityCount > change.system.value * 2) {
+  const nextSystem = foundry.utils.mergeObject(foundry.utils.deepClone(item.system), change.system, { inplace: false });
+  const nextLimit = getDomainAbilityLimit({ system: nextSystem }, change.system.value);
+  if (abilityCount > nextLimit) {
     ui.notifications.warn("Сначала удалите лишние способности этого домена.");
     return false;
   }
@@ -1637,6 +1807,56 @@ function protectAspects(item, userId) {
 Hooks.on("preCreateItem", (item, change, options, userId) => protectAspects(item, userId));
 Hooks.on("preUpdateItem", (item, change, options, userId) => protectAspects(item, userId));
 Hooks.on("preDeleteItem", (item, options, userId) => protectAspects(item, userId));
+
+Hooks.on("preCreateItem", (item) => {
+  if (item.type === "aspect" && item.system.value !== undefined) {
+    item.updateSource({ system: { value: clamp(item.system.value, 0, getSetting("maxAspectLevel")) } });
+  }
+  const actor = item.parent;
+  if (actor?.type !== "character") return;
+  if (item.type === "domain" && item.system.value !== undefined) {
+    item.updateSource({ system: { value: clamp(item.system.value, 1, getSetting("maxDomainLevel")) } });
+  }
+  if (item.type === "domain" || item.type === "attribute") {
+    const key = item.type === "domain" ? "maxDomains" : "maxAttributes";
+    const count = actor.items.filter((entry) => entry.type === item.type).length;
+    if (count >= getSetting(key)) {
+      ui.notifications.warn(`Достигнут лимит: ${getSetting(key)} (${item.type === "domain" ? "доменов" : "атрибутов"}).`);
+      return false;
+    }
+  }
+  if (item.type === "ability" && item.system.domainId) {
+    const domain = actor.items.get(item.system.domainId);
+    if (!domain) return;
+    const abilityCount = actor.items.filter((entry) => entry.type === "ability" && entry.system.domainId === domain.id).length;
+    if (abilityCount >= getDomainAbilityLimit(domain)) {
+      ui.notifications.warn(`У домена «${domain.name}» достигнут лимит способностей.`);
+      return false;
+    }
+  }
+});
+
+Hooks.on("preUpdateItem", (item, change) => {
+  if (item.type === "aspect") {
+    if (change.system?.value !== undefined) {
+      change.system.value = clamp(change.system.value, 0, getSetting("maxAspectLevel"));
+    }
+    return;
+  }
+  if (item.type !== "ability" || change.system?.domainId === undefined) return;
+  const nextDomainId = change.system.domainId;
+  if (nextDomainId === item.system.domainId) return;
+  const actor = item.parent;
+  const domain = actor?.items?.get(nextDomainId);
+  if (!domain) return;
+  const abilityCount = actor.items.filter((entry) => entry.type === "ability"
+    && entry.id !== item.id
+    && entry.system.domainId === domain.id).length;
+  if (abilityCount >= getDomainAbilityLimit(domain)) {
+    ui.notifications.warn(`У домена «${domain.name}» достигнут лимит способностей.`);
+    return false;
+  }
+});
 
 Hooks.on("renderChatLog", (app, html) => renderChatTray(app?.element ?? html));
 Hooks.on("renderChat", (app, html) => renderChatTray(app?.element ?? html));

@@ -8,7 +8,21 @@
     <input class="name" name="name" type="text" value="{{item.name}}">
   </header>
   <label>Описание<textarea name="system.description">{{system.description}}</textarea></label>
-  {{#if hasValue}}<label>Уровень<input name="system.value" type="number" min="0" max="3" value="{{system.value}}"></label>{{/if}}
+  {{#if hasValue}}<label>Уровень<input name="system.value" type="number" min="{{#if isDomain}}1{{else}}0{{/if}}" max="{{#if isDomain}}{{maxDomainLevel}}{{else}}{{maxAspectLevel}}{{/if}}" value="{{system.value}}"></label>{{/if}}
+  {{#if showAbilityMultiplier}}
+    <label>Способностей на уровень<input name="system.abilitiesPerLevel" type="number" min="0" max="99" step="1" value="{{abilityMultiplier}}"></label>
+  {{/if}}
+  {{#if showAbilityLimits}}
+    <section class="domain-ability-limits"><b>Лимит способностей по уровню</b>
+      {{#each abilityLimitRows}}
+        <label>Уровень {{level}}<input name="system.abilityLimits.{{level}}" type="number" min="0" max="99" step="1" value="{{limit}}"></label>
+      {{/each}}
+    </section>
+  {{/if}}
+  {{#if isDomain}}
+    <p>Способности: {{abilityCount}} / {{abilityLimitLabel}}</p>
+    {{#if overAbilityLimit}}<p class="warning">Уже созданных способностей больше текущего лимита; новые добавить нельзя, пока лимит не будет соблюдён.</p>{{/if}}
+  {{/if}}
   {{#if isAspect}}
     <label>Уровни<textarea name="system.levels">{{system.levels}}</textarea></label>
     <label>Статусы<textarea name="system.statuses">{{system.statuses}}</textarea></label>

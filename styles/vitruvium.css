@@ -140,6 +140,11 @@
 .vitruvium .domain-card > .add-card { grid-column:1 / -1; }
 .vitruvium .domain-title { min-width:0; flex-wrap:wrap; gap:4px 10px; }
 .vitruvium .domain-title b { min-width:0; overflow-wrap:anywhere; }
+.vitruvium .domain-ability-limits { display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:6px; min-width:0; }
+.vitruvium .domain-ability-limits > b { grid-column:1 / -1; }
+.vitruvium .domain-ability-limits > label { display:grid; gap:4px; min-width:0; }
+.vitruvium .domain-ability-capacity { color:#b9c7d3; }
+.vitruvium .domain-card .warning { color:#f0a84a; }
 .vitruvium .domain-card p, .vitruvium .entity-content p, .vitruvium .ability-content p { white-space:pre-wrap; overflow-wrap:anywhere; }
 .vitruvium .entity-image, .vitruvium .ability-image, .vitruvium .resource-image {
   display:block; width:58px; height:58px; min-width:0; object-fit:cover;
