@@ -5,9 +5,39 @@
       <label class="image-button">{{#if itemHasImage}}Изменить фото{{else}}Добавить фото{{/if}}<input type="file" data-item-sheet-image accept=".png,.jpg,.jpeg,.gif,.webp"></label>
       {{#if itemHasImage}}<button type="button" data-item-sheet-action="remove-image">Удалить фото</button>{{/if}}
     </div>{{/if}}
-    <input class="name" name="name" type="text" value="{{item.name}}">
+    {{#if isStatus}}
+      <input class="name" type="text" data-status-library-field="name" value="{{item.name}}" aria-label="Название статуса">
+    {{else}}
+      <input class="name" name="name" type="text" value="{{item.name}}">
+    {{/if}}
   </header>
-  <label>Описание<textarea name="system.description">{{system.description}}</textarea></label>
+  {{#if isStatus}}
+    <label>Описание<textarea data-status-library-field="description">{{system.description}}</textarea></label>
+    <label class="status-active-toggle"><input type="checkbox" data-status-library-field="active" {{#if statusActive}}checked{{/if}}>Активен — эффекты учитываются при бросках</label>
+    <div class="status-effects">
+      <b>Эффекты характеристик</b>
+      {{#each statusEffects}}
+        <div class="status-effect" data-status-library-effect-id="{{id}}">
+          <label>Характеристика
+            <select data-status-library-field="characteristic">
+              {{#each characteristicOptions}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+            </select>
+          </label>
+          <label>Тип эффекта
+            <select data-status-library-field="type">
+              {{#each typeOptions}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+            </select>
+          </label>
+          <label>Значение<input type="number" min="{{minModifier}}" max="{{maxModifier}}" step="1" value="{{value}}" data-status-library-field="value"></label>
+          <button type="button" data-status-library-action="remove-effect">Удалить эффект</button>
+        </div>
+      {{/each}}
+      <button type="button" data-status-library-action="add-effect">Добавить эффект</button>
+    </div>
+    <small>Изменения сохраняются при изменении полей.</small>
+  {{else}}
+    <label>Описание<textarea name="system.description">{{system.description}}</textarea></label>
+  {{/if}}
   {{#if hasValue}}<label>Уровень<input name="system.value" type="number" min="{{#if isDomain}}1{{else}}0{{/if}}" max="{{#if isDomain}}{{maxDomainLevel}}{{else}}{{maxAspectLevel}}{{/if}}" value="{{system.value}}"></label>{{/if}}
   {{#if showAbilityMultiplier}}
     <label>Способностей на уровень<input name="system.abilitiesPerLevel" type="number" min="0" max="99" step="1" value="{{abilityMultiplier}}"></label>

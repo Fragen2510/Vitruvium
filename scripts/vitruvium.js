@@ -32,6 +32,35 @@ const getEffectValue = (effect, type) => {
   const value = Number(effect.type ? (effect.type === type ? effect.value : 0) : effect[type === "dice" ? "modifier" : type]);
   return Number.isFinite(value) ? value : 0;
 };
+function prepareStatusEffects(effects) {
+  return (Array.isArray(effects) ? effects : []).flatMap((effect, index) => {
+    const entries = STATUS_EFFECT_TYPES[effect.type]
+      ? [{ type: effect.type, value: Number(effect.value) }]
+      : ["dice", "advantage", "hindrance"]
+        .map((type) => ({ type, value: getEffectValue(effect, type) }))
+        .filter(({ value }) => value !== 0);
+    return entries.map(({ type, value }, entryIndex) => {
+      const normalizedValue = Number.isFinite(value) ? Math.trunc(value) : 0;
+      return {
+        id: `${effect.id ?? `status-effect-${index}`}${entries.length > 1 ? `-${entryIndex}` : ""}`,
+        type,
+        value: type === "dice" ? normalizedValue : clamp(normalizedValue, 0, getMaxAdvantageHindrance()),
+        minModifier: type === "dice" ? -MAX_CONFIGURABLE_LIMIT : 0,
+        maxModifier: type === "dice" ? MAX_CONFIGURABLE_LIMIT : getMaxAdvantageHindrance(),
+        displayValue: type === "dice" && normalizedValue > 0 ? `+${normalizedValue}` : String(normalizedValue),
+        label: STATUS_EFFECT_TYPES[type],
+        characteristic: effect.characteristic,
+        characteristicLabel: CHARACTERISTICS[effect.characteristic]?.label ?? "Характеристика",
+        characteristicOptions: Object.entries(CHARACTERISTICS).map(([key, characteristic]) => ({
+          key, label: characteristic.label, selected: effect.characteristic === key
+        })),
+        typeOptions: Object.entries(STATUS_EFFECT_TYPES).map(([key, label]) => ({
+          key, label, selected: type === key
+        }))
+      };
+    });
+  });
+}
 const getBonusDieCount = ({ net, bonusDieMode }) => bonusDieMode && net ? 1 + Math.abs(net) : 1;
 const selectBonusDieResult = (results, net, bonusDieMode) => {
   const selectedIndex = results.reduce((selected, result, index) => {
@@ -501,7 +530,7 @@ async function handleTrayClick(event) {
 
 class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2) {
   static DEFAULT_OPTIONS = {
-    classes: ["vitruvium", "sheet", "actor"], position: { width: 980, height: 820 },
+    classes: ["vitruvium", "sheet", "actor"], position: { width: 980, height: 820 }, window: { resizable: true },
     form: { closeOnSubmit: false, submitOnChange: true }
   };
   static PARTS = { main: { template: "systems/vitruvium/templates/actor-sheet.hbs" } };
@@ -555,33 +584,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       id: item.id, name: item.name, img: item.img, hasImage: hasCustomImage(item.img), system: item.system
     }));
     const statuses = this.actor.items.filter((item) => item.type === "status").map((item) => {
-      const effects = (Array.isArray(item.system.effects) ? item.system.effects : []).flatMap((effect, index) => {
-        const entries = STATUS_EFFECT_TYPES[effect.type]
-          ? [{ type: effect.type, value: Number(effect.value) }]
-          : ["dice", "advantage", "hindrance"]
-            .map((type) => ({ type, value: getEffectValue(effect, type) }))
-            .filter(({ value }) => value !== 0);
-        return entries.map(({ type, value }, entryIndex) => {
-          const normalizedValue = Number.isFinite(value) ? Math.trunc(value) : 0;
-          return {
-            id: `${effect.id ?? `status-effect-${index}`}${entries.length > 1 ? `-${entryIndex}` : ""}`,
-            type,
-            value: type === "dice"
-              ? normalizedValue
-              : clamp(normalizedValue, 0, getMaxAdvantageHindrance()),
-            displayValue: type === "dice" && normalizedValue > 0 ? `+${normalizedValue}` : String(normalizedValue),
-            label: STATUS_EFFECT_TYPES[type],
-            characteristic: effect.characteristic,
-            characteristicLabel: CHARACTERISTICS[effect.characteristic]?.label ?? "Характеристика",
-            characteristicOptions: Object.entries(CHARACTERISTICS).map(([key, characteristic]) => ({
-              key, label: characteristic.label, selected: effect.characteristic === key
-            })),
-            typeOptions: Object.entries(STATUS_EFFECT_TYPES).map(([key, label]) => ({
-              key, label, selected: type === key
-            }))
-          };
-        });
-      });
+      const effects = prepareStatusEffects(item.system.effects);
       return {
         id: item.id,
         name: item.name,
@@ -1278,6 +1281,7 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
   static DEFAULT_OPTIONS = {
     classes: ["vitruvium", "sheet", "actor", "npc"],
     position: { width: 720, height: 620 },
+    window: { resizable: true },
     form: { closeOnSubmit: false, submitOnChange: false }
   };
   static PARTS = { main: { template: "systems/vitruvium/templates/npc-sheet.hbs" } };
@@ -1518,7 +1522,7 @@ class VitruviumNpcSheet extends foundry.applications.api.HandlebarsApplicationMi
 }
 
 class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.sheets.ItemSheetV2) {
-  static DEFAULT_OPTIONS = { classes: ["vitruvium", "sheet", "item"], position: { width: 620, height: 560 }, form: { closeOnSubmit: false, submitOnChange: true } };
+  static DEFAULT_OPTIONS = { classes: ["vitruvium", "sheet", "item"], position: { width: 620, height: 560 }, window: { resizable: true }, form: { closeOnSubmit: false, submitOnChange: true } };
   static PARTS = { main: { template: "systems/vitruvium/templates/item-sheet.hbs" } };
   get item() { return this.object ?? this.document; }
   get title() { return this.item.name || super.title; }
@@ -1528,6 +1532,53 @@ class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationM
   }
   async _onRender(context, options) {
     await super._onRender(context, options);
+    if (this.item.type === "status") {
+      this.element.querySelectorAll("[data-status-library-field]").forEach((field) => {
+        field.addEventListener("change", async (event) => {
+          event.stopPropagation();
+          try {
+            if (field.dataset.statusLibraryField === "type") {
+              const valueField = field.closest(".status-effect")?.querySelector("[data-status-library-field='value']");
+              const limited = ["advantage", "hindrance"].includes(field.value);
+              if (valueField) {
+                valueField.min = limited ? "0" : String(-MAX_CONFIGURABLE_LIMIT);
+                valueField.max = limited ? String(getMaxAdvantageHindrance()) : String(MAX_CONFIGURABLE_LIMIT);
+                valueField.value = String(Math.trunc(clamp(
+                  valueField.value,
+                  limited ? 0 : -MAX_CONFIGURABLE_LIMIT,
+                  limited ? getMaxAdvantageHindrance() : MAX_CONFIGURABLE_LIMIT
+                )));
+              }
+            }
+            await this.#saveLibraryStatus();
+          } catch (error) {
+            console.error("Vitruvium library status update failed.", error);
+            ui.notifications.error("Не удалось сохранить статус библиотеки.");
+          }
+        });
+      });
+      this.element.querySelector("[data-status-library-action='add-effect']")?.addEventListener("click", async (event) => {
+        event.preventDefault();
+        try {
+          await this.#addLibraryStatusEffect();
+        } catch (error) {
+          console.error("Vitruvium library status effect creation failed.", error);
+          ui.notifications.error("Не удалось добавить эффект статуса.");
+        }
+      });
+      this.element.querySelectorAll("[data-status-library-action='remove-effect']").forEach((button) => {
+        button.addEventListener("click", async (event) => {
+          event.preventDefault();
+          try {
+            await this.#saveLibraryStatus(button.closest("[data-status-library-effect-id]")?.dataset.statusLibraryEffectId);
+            return this.render();
+          } catch (error) {
+            console.error("Vitruvium library status effect removal failed.", error);
+            ui.notifications.error("Не удалось удалить эффект статуса.");
+          }
+        });
+      });
+    }
     this.element.querySelector("[data-item-sheet-image]")?.addEventListener("change", async (event) => {
       try {
         const file = event.currentTarget.files?.[0];
@@ -1549,6 +1600,7 @@ class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationM
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     const isDomain = this.item.type === "domain";
+    const isStatus = this.item.type === "status";
     const abilityLimitMode = getSetting("domainAbilityLimitMode");
     const maxDomainLevel = getSetting("maxDomainLevel");
     const abilityCount = this.item.parent?.items
@@ -1559,6 +1611,9 @@ class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationM
       itemHasImage: hasCustomImage(this.item.img),
       isEditable: this.isEditable,
       hasValue: ["domain", "aspect"].includes(this.item.type), isDomain, isAspect: this.item.type === "aspect",
+      isStatus,
+      statusActive: this.item.system.active !== false,
+      statusEffects: prepareStatusEffects(this.item.system.effects),
       maxDomainLevel,
       maxAspectLevel: getSetting("maxAspectLevel"),
       showAbilityMultiplier: isDomain && abilityLimitMode === "multiplier",
@@ -1584,10 +1639,64 @@ class VitruviumItemSheet extends foundry.applications.api.HandlebarsApplicationM
       canEditAspect: game.user.isGM || game.user.role >= CONST.USER_ROLES.ASSISTANT
     };
   }
+
+  #collectLibraryStatus(excludedEffectId = null) {
+    const effects = [...this.element.querySelectorAll("[data-status-library-effect-id]")]
+      .filter((row) => row.dataset.statusLibraryEffectId !== excludedEffectId)
+      .map((row) => {
+        const characteristic = row.querySelector("[data-status-library-field='characteristic']")?.value;
+        const type = row.querySelector("[data-status-library-field='type']")?.value;
+        const value = Number(row.querySelector("[data-status-library-field='value']")?.value);
+        if (!CHARACTERISTIC_KEYS.has(characteristic) || !Object.hasOwn(STATUS_EFFECT_TYPES, type) || !Number.isFinite(value)) {
+          throw new Error("Library status contains an invalid effect.");
+        }
+        return {
+          id: row.dataset.statusLibraryEffectId,
+          characteristic,
+          type,
+          value: Math.trunc(["advantage", "hindrance"].includes(type)
+            ? clamp(value, 0, getMaxAdvantageHindrance())
+            : clamp(value, -MAX_CONFIGURABLE_LIMIT, MAX_CONFIGURABLE_LIMIT))
+        };
+      });
+    return {
+      name: this.element.querySelector("[data-status-library-field='name']")?.value.trim() || "Статус",
+      description: this.element.querySelector("[data-status-library-field='description']")?.value ?? "",
+      active: this.element.querySelector("[data-status-library-field='active']")?.checked ?? true,
+      effects
+    };
+  }
+
+  async #saveLibraryStatus(excludedEffectId = null) {
+    const status = this.#collectLibraryStatus(excludedEffectId);
+    await this.item.update({
+      name: status.name,
+      "system.description": status.description,
+      "system.active": status.active,
+      "system.effects": status.effects
+    });
+  }
+
+  async #addLibraryStatusEffect() {
+    const status = this.#collectLibraryStatus();
+    status.effects.push({
+      id: foundry.utils.randomID(),
+      characteristic: Object.keys(CHARACTERISTICS)[0],
+      type: "dice",
+      value: 0
+    });
+    await this.item.update({
+      name: status.name,
+      "system.description": status.description,
+      "system.active": status.active,
+      "system.effects": status.effects
+    });
+    return this.render();
+  }
 }
 
 class VitruviumAspectManager extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.api.ApplicationV2) {
-  static DEFAULT_OPTIONS = { id: "vitruvium-aspects", tag: "section", classes: ["vitruvium", "aspect-manager"], position: { width: 620, height: 620 }, window: { title: "Аспекты мира" } };
+  static DEFAULT_OPTIONS = { id: "vitruvium-aspects", tag: "section", classes: ["vitruvium", "aspect-manager"], position: { width: 620, height: 620 }, window: { title: "Аспекты мира", resizable: true } };
   static PARTS = { main: { template: "systems/vitruvium/templates/aspect-manager.hbs" } };
   get canEdit() { return game.user.isGM || game.user.role >= CONST.USER_ROLES.ASSISTANT; }
   async _prepareContext() {
