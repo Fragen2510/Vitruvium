@@ -801,10 +801,7 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
     try {
       const domains = this.actor.items.filter((item) => item.type === "domain");
       const maxAdvantageHindrance = getMaxAdvantageHindrance();
-      const applicableStatuses = this.actor.items.filter((item) => item.type === "status"
-        && item.system.active !== false
-        && (Array.isArray(item.system.effects) ? item.system.effects : [])
-          .some((effect) => effect.characteristic === key));
+      const activeStatuses = this.actor.items.filter((item) => item.type === "status" && item.system.active !== false);
       let selectedDomain = null;
       let advantage = trayState.advantage;
       let hindrance = trayState.hindrance;
@@ -816,8 +813,12 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         `<option value="${count}" ${count === clamp(selected, 0, maxAdvantageHindrance) ? "selected" : ""}>${count}</option>`
         ).join("");
       const modifierControls = `<div class="form-group"><label for="vitruvium-roll-advantage">Преимущество</label><select id="vitruvium-roll-advantage" name="advantage">${modifierOptions(trayState.advantage)}</select></div><div class="form-group"><label for="vitruvium-roll-hindrance">Помеха</label><select id="vitruvium-roll-hindrance" name="hindrance">${modifierOptions(trayState.hindrance)}</select><p class="hint">Начальные значения взяты из Dice Tray. Статусы могут добавить свои эффекты, преимущество и помеха компенсируются.</p></div>`;
-      const statusControls = applicableStatuses.length
-        ? `<fieldset class="form-group"><legend>Статусы</legend><p class="hint">Отметьте статусы, эффекты которых нужно временно отключить только для этого броска.</p>${applicableStatuses.map((status) => `<label><input type="checkbox" name="disableStatus_${escapeHtml(status.id)}"> Не учитывать «${escapeHtml(status.name)}»</label>`).join("")}</fieldset>`
+      const statusControls = activeStatuses.length
+        ? `<fieldset class="form-group"><legend>Отключить статусы для этого броска</legend><p class="hint">Отметьте статус, чтобы не учитывать его эффекты в этой проверке. Сам статус останется активным на листе.</p>${activeStatuses.map((status) => {
+            const affectsCharacteristic = (Array.isArray(status.system.effects) ? status.system.effects : [])
+              .some((effect) => effect.characteristic === key);
+            return `<label><input type="checkbox" name="disableStatus_${escapeHtml(status.id)}" value="true"> ${escapeHtml(status.name)}${affectsCharacteristic ? "" : " (не влияет на эту характеристику)"}</label>`;
+          }).join("")}</fieldset>`
         : "";
       const selection = await foundry.applications.api.DialogV2.input({
         window: { title: `Проверка характеристики: ${characteristic.label}` },
@@ -829,8 +830,9 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
       selectedDomain = domains.find((domain) => domain.id === selection.domain) ?? null;
       advantage = clamp(selection.advantage, 0, maxAdvantageHindrance);
       hindrance = clamp(selection.hindrance, 0, maxAdvantageHindrance);
-      for (const status of applicableStatuses) {
-        if (selection[`disableStatus_${status.id}`]) disabledStatuses.push({ id: status.id, name: status.name });
+      for (const status of activeStatuses) {
+        const selected = selection[`disableStatus_${status.id}`];
+        if (selected === true || selected === "true") disabledStatuses.push({ id: status.id, name: status.name });
       }
       const speaker = ChatMessage.getSpeaker({ actor: this.actor });
       const excludedStatusIds = new Set(disabledStatuses.map((status) => status.id));
