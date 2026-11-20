@@ -127,7 +127,7 @@
                 {{#if hasImage}}<img class="entity-image" src="{{img}}" alt="">{{/if}}
               {{else}}
                 {{#if hasImage}}<img class="entity-image" src="{{img}}" alt="">{{/if}}
-                <div class="entity-content"><b>{{name}}</b>
+                <div class="entity-content attribute-content"><b>{{name}}</b>
                   {{#if ../editing.attributes}}<div class="form-actions"><button type="button" data-vitruvium-action="edit-item" data-item-id="{{id}}">Изменить</button><button type="button" data-vitruvium-action="delete-item" data-item-id="{{id}}">Удалить</button></div>{{/if}}
                   {{#if system.description}}<details class="description-details"><summary>Описание</summary><p>{{system.description}}</p></details>{{/if}}
                 </div>

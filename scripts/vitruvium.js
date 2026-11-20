@@ -814,15 +814,16 @@ class VitruviumActorSheet extends foundry.applications.api.HandlebarsApplication
         ).join("");
       const modifierControls = `<div class="form-group"><label for="vitruvium-roll-advantage">Преимущество</label><select id="vitruvium-roll-advantage" name="advantage">${modifierOptions(trayState.advantage)}</select></div><div class="form-group"><label for="vitruvium-roll-hindrance">Помеха</label><select id="vitruvium-roll-hindrance" name="hindrance">${modifierOptions(trayState.hindrance)}</select><p class="hint">Начальные значения взяты из Dice Tray. Статусы могут добавить свои эффекты, преимущество и помеха компенсируются.</p></div>`;
       const statusControls = activeStatuses.length
-        ? `<fieldset class="form-group"><legend>Отключить статусы для этого броска</legend><p class="hint">Отметьте статус, чтобы не учитывать его эффекты в этой проверке. Сам статус останется активным на листе.</p>${activeStatuses.map((status) => {
+        ? `<fieldset class="form-group"><legend>Отключить статусы для этого броска</legend><p class="hint">Отметьте статус, чтобы не учитывать его эффекты в этой проверке. Сам статус останется активным на листе.</p><div class="vitruvium-roll-status-list">${activeStatuses.map((status) => {
             const affectsCharacteristic = (Array.isArray(status.system.effects) ? status.system.effects : [])
               .some((effect) => effect.characteristic === key);
-            return `<label><input type="checkbox" name="disableStatus_${escapeHtml(status.id)}" value="true"> ${escapeHtml(status.name)}${affectsCharacteristic ? "" : " (не влияет на эту характеристику)"}</label>`;
-          }).join("")}</fieldset>`
+            return `<label class="vitruvium-roll-status-option"><input type="checkbox" name="disableStatus_${escapeHtml(status.id)}" value="true"><span>${escapeHtml(status.name)}${affectsCharacteristic ? "" : " (не влияет на эту характеристику)"}</span></label>`;
+          }).join("")}</div></fieldset>`
         : "";
       const selection = await foundry.applications.api.DialogV2.input({
         window: { title: `Проверка характеристики: ${characteristic.label}` },
-        content: `${domainOptions}${modifierControls}${statusControls}`,
+        classes: ["vitruvium", "vitruvium-roll-dialog"],
+        content: `<form class="vitruvium-roll-form">${domainOptions}${modifierControls}${statusControls}</form>`,
         ok: { label: "Бросить" },
         rejectClose: false
       });

@@ -154,7 +154,18 @@
 .vitruvium .entity-card > .entity-edit { grid-column:2; min-width:0; }
 .vitruvium .entity-card > .entity-image { grid-column:1; grid-row:1; }
 .vitruvium .entity-content, .vitruvium .entity-edit { min-width:0; }
-.vitruvium .attributes-panel .entity-content { display:grid; gap:6px; }
+.vitruvium .attributes-panel .attribute-content { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+.vitruvium .attributes-panel .attribute-content > .description-details { width:100%; }
+.vitruvium-roll-dialog .vitruvium-roll-status-list {
+  display:grid; grid-template-columns:minmax(0,1fr); gap:6px; max-height:220px; overflow:auto;
+}
+.vitruvium-roll-dialog .vitruvium-roll-status-option {
+  display:flex; align-items:flex-start; justify-content:flex-start; gap:8px; width:100%; min-width:0;
+  margin:0; padding:7px 9px; border:1px solid #40505f; border-radius:6px; background:#202b35;
+  overflow-wrap:anywhere; cursor:pointer;
+}
+.vitruvium-roll-dialog .vitruvium-roll-status-option input { flex:0 0 auto; margin:2px 0 0; }
+.vitruvium-roll-dialog .vitruvium-roll-status-option span { min-width:0; }
 .vitruvium .status-panel .scroll-list > .status-card {
   display:grid; grid-template-columns:minmax(0,1fr); grid-auto-flow:row; align-items:start;
   gap:9px; min-width:0; min-height:110px; padding:12px;
